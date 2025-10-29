@@ -24,6 +24,7 @@ using CircularArrays
     l₀                 ::Float64            # Edge preferred length
     Pᵢ                 ::Float64            # Internal pressure per cell
     pressureExternal   ::Float64            # External pressure applied uniformly to system
+    boundaryToggle     ::Bool              # Flag controlling whether boundary conditions are applied
     outputTotal        ::Int64              # Total number of data outputs
     outputInterval     ::Float64            # Non dimensionalised data output interval
     viscousTimeScale   ::Float64            # Relaxation rate, approx from Sarah's data.
@@ -62,10 +63,11 @@ end
     cellAreas        ::Vector{Float64}                              # Vector of scalar cell areas
     cellA₀s          ::Vector{Float64}                              # Vector of scalar cell preferred areas
     cellL₀s          ::Vector{Float64}                              # Vector of scalar cell preferred perimeters
-    cellPᵢs          ::Vector{Float64}                              # Vector of scalar cell internal pressures
+    
     cellTensions     ::Vector{Float64}                              # Vector of boundary tensions for each cell
     cellPressures    ::Vector{Float64}                              # Vector of internal pressures for each cell
     cellTimeToDivide ::Vector{Float64}                              # Vector of time left until division for each cell
+    cellPᵢs          ::Vector{Float64}                              # Vector of scalar cell internal pressures
     μ                ::Vector{Float64}                              # Vector of cell stiffness factors 
     Γ                ::Vector{Float64}                              # Vector of factors determinind relative strength of cell tension and internal pressure per cell 
     edgeLengths      ::Vector{Float64}                              # Vector of lengths for each edge in the system

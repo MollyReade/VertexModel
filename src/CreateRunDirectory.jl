@@ -31,7 +31,7 @@ function createRunDirectory(params,subFolder)
         nCells,
         nEdges,
         L₀,
-        lₒ,
+        l₀,
         outputInterval,
         tMax,
         nonDimCycleTime = params
