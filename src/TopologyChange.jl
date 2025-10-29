@@ -60,16 +60,16 @@ function topologyChange!(matrices)
 
     # Calculate additional topology data
     # Number of edges around each cell found by summing columns of B̄
-    cellEdgeCount .= sum.(eachrow(B̄))  # FastBroadcast doesn't work for this line; not sure why
-
+    #cellEdgeCount .= sum.(eachrow(B̄))  # FastBroadcast doesn't work for this line; not sure why
+    cellEdgeCount .= 6
     # Find boundary vertices
     # Summing each column of B finds boundary edges (for all other edges, cell orientations on either side cancel);
     # multiplying by Aᵀ gives nonzero values only where a vertex (row) has nonzero values at columns (edges) corresponding to nonzero values in the list of boundary edges.
     # Note that the abs is needed in case the direction of boundary edges cancel at a vertex
-    boundaryVertices .= Āᵀ * abs.(sum.(eachcol(B))) .÷ 2
+    #boundaryVertices .= Āᵀ * abs.(sum.(eachcol(B))) .÷ 2
 
     # Find list of edges at system periphery
-    boundaryEdges .= abs.([sum(x) for x in eachcol(B)])
+    #boundaryEdges .= abs.([sum(x) for x in eachcol(B)])
 
     for i = 1:length(cellVertexOrders)
         cellVertexOrders[i], cellEdgeOrders[i] = orderAroundCell(matrices, i)

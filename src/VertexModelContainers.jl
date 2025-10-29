@@ -21,6 +21,8 @@ using CircularArrays
     λ                  ::Float64            # Parameter in energy relaxation
     L₀                 ::Float64            # Cell preferred perimeter length L₀ = -λ/(2*γ)
     A₀                 ::Float64            # Cell preferred area
+    l₀                 ::Float64            # Edge preferred length
+    Pᵢ                 ::Float64            # Internal pressure per cell
     pressureExternal   ::Float64            # External pressure applied uniformly to system
     outputTotal        ::Int64              # Total number of data outputs
     outputInterval     ::Float64            # Non dimensionalised data output interval
@@ -60,6 +62,7 @@ end
     cellAreas        ::Vector{Float64}                              # Vector of scalar cell areas
     cellA₀s          ::Vector{Float64}                              # Vector of scalar cell preferred areas
     cellL₀s          ::Vector{Float64}                              # Vector of scalar cell preferred perimeters
+    cellPᵢs          ::Vector{Float64}                              # Vector of scalar cell internal pressures
     cellTensions     ::Vector{Float64}                              # Vector of boundary tensions for each cell
     cellPressures    ::Vector{Float64}                              # Vector of internal pressures for each cell
     cellTimeToDivide ::Vector{Float64}                              # Vector of time left until division for each cell
@@ -68,6 +71,7 @@ end
     edgeLengths      ::Vector{Float64}                              # Vector of lengths for each edge in the system
     edgeTangents     ::Vector{SVector{2, Float64}}                  # Vector of 2D static vectors containing edge length and direction as a 2D vector
     edgeMidpoints    ::Vector{SVector{2, Float64}}                  # Vector of 2D static vectors containing edge midpoints as (x,y) positions
+    edgel₀s          ::Vector{Float64}                              # Vector of scalar edge preferred lengths
     edgeMidpointLinks::SparseMatrixCSC{SVector{2, Float64}, Int64}  # Sparse array of vectors connecting adjacent edge midpoints, indexed by adjacent vertex and cell for each midpoint link 
     timeSinceT1      ::Vector{Float64}                              # Vector of times since each edge last underwent a T1 transition
     vertexAreas      ::Vector{Float64}                              # Vector of areas of triangles surrounding vertices    

@@ -21,7 +21,7 @@ using Random
 @from "SenseCheck.jl" using SenseCheck
 
 function initialSystemLayout(;
-        nRows = 9,
+        nRows = 3,
         initialEdgeLength = 5.0*0.75/6, # Need to find a better value for this than 5*L₀/6
     )
 

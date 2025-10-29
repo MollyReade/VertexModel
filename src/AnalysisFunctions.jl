@@ -346,7 +346,7 @@ function makeLf(params,matrices,trapeziumAreas)
     @unpack B,Bᵀ,cellAreas,edgeLengths = matrices
     @unpack nCells = params
     onesVec = ones(1,nCells)
-    boundaryEdges = abs.(onesVec*B)
+    #boundaryEdges = abs.(onesVec*B)
     H = Diagonal(cellAreas)
     boundaryEdgesFactor = abs.(boundaryEdges.-1)# =1 for internal vertices, =0 for boundary vertices
     diagonalComponent = (boundaryEdgesFactor'.*((edgeLengths.^2)./(2.0.*trapeziumAreas)))[:,1] # Multiply by boundaryEdgesFactor vector to set boundary vertex contributions to zero
@@ -361,7 +361,7 @@ function makeLc(params,matrices,T,trapeziumAreas)
     @unpack B,Bᵀ,cellAreas = matrices
     @unpack nCells = params
     onesVec = ones(1,nCells)
-    boundaryEdges = abs.(onesVec*B)
+    #boundaryEdges = abs.(onesVec*B)
     boundaryEdgesFactor = abs.(boundaryEdges.-1)# =1 for internal vertices, =0 for boundary vertices
     H = Diagonal(cellAreas)
     Tₗ = Diagonal(((norm.(T)).^2)./(2.0.*trapeziumAreas))

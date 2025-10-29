@@ -44,14 +44,16 @@ function spatialData!(R,params,matrices)
         edgeMidpointLinks,
         vertexAreas,
         μ,
-        Γ = matrices
+        Γ,
+        cellPᵢs = matrices
     @unpack nCells,
         nEdges,
         nVerts,
         γ,
         L₀,
         A₀,
-        energyModel = params
+        energyModel,
+        l₀ = params
 
     cellPositions  .= C*R./cellEdgeCount
     
@@ -104,6 +106,12 @@ function spatialData!(R,params,matrices)
         @.. thread = false cellTensions .= μ .* Γ .* cellL₀s .* log.(cellPerimeters ./ cellL₀s)
         # Calculate cell internal pressures
         @.. thread = false cellPressures .= μ .* cellA₀s .* log.(cellAreas ./ cellA₀s)
+    elseif energyModel == "ventilation"
+        # Ventilation energy model
+        # Calculate cell boundary tensions
+        @.. thread = false cellTensions .= 1/l₀ .* (edgeLengths .- 1)   
+        # Calculate cell internal pressures
+        @.. thread = false cellPressures .= cellPᵢs
     else
         # Quadratic energy model
         # Calculate cell boundary tensions
