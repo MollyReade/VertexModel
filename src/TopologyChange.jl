@@ -60,8 +60,8 @@ function topologyChange!(matrices)
 
     # Calculate additional topology data
     # Number of edges around each cell found by summing columns of B̄
-    #cellEdgeCount .= sum.(eachrow(B̄))  # FastBroadcast doesn't work for this line; not sure why
-    cellEdgeCount .= 6
+    cellEdgeCount .= sum.(eachrow(B̄))  # FastBroadcast doesn't work for this line; not sure why
+    #cellEdgeCount .= 6
     # Find boundary vertices
     # Summing each column of B finds boundary edges (for all other edges, cell orientations on either side cancel);
     # multiplying by Aᵀ gives nonzero values only where a vertex (row) has nonzero values at columns (edges) corresponding to nonzero values in the list of boundary edges.

@@ -29,6 +29,7 @@ function model!(du, u, p, t)
         cellPressures,
         edgeLengths,
         edgeTangents,
+        edgeTensions,
         F,
         externalF,
         ϵ,
@@ -40,7 +41,8 @@ function model!(du, u, p, t)
         nEdges,
         pressureExternal,
         peripheralTension,
-        vertexWeighting = params
+        vertexWeighting,
+        energyModel = params
 
     # Reinterpret state vector as a vector of SVectors 
     R = reinterpret(SVector{2,Float64}, u)
@@ -58,14 +60,23 @@ function model!(du, u, p, t)
         for j in nzrange(A, k)
             for i in nzrange(B, rowvals(A)[j])
                 # Force components from cell pressure perpendicular to edge tangents 
-                #! swapped sign
-                F[k, rowvals(B)[i]] += 0.5 * cellPressures[rowvals(B)[i]] * B[rowvals(B)[i], rowvals(A)[j]] * Ā[rowvals(A)[j], k] .* (ϵ * edgeTangents[rowvals(A)[j]])
                 # Force components from cell membrane tension parallel to edge tangents 
-                F[k, rowvals(B)[i]] -= cellTensions[rowvals(B)[i]] * B̄[rowvals(B)[i], rowvals(A)[j]] * A[rowvals(A)[j], k] .* edgeTangents[rowvals(A)[j]] ./ edgeLengths[rowvals(A)[j]]
+                if energyModel == "ventilation"
+                    # Ventilation energy model
+                    F[k, rowvals(B)[i]] -= 0.5 * cellPressures[rowvals(B)[i]] * B[rowvals(B)[i], rowvals(A)[j]] * Ā[rowvals(A)[j], k] .* (ϵ * edgeTangents[rowvals(A)[j]])
+                    F[k, rowvals(B)[i]] -= (edgeTensions[rowvals(A)[j]]) * A[rowvals(A)[j], k] .* edgeTangents[rowvals(A)[j]] ./ edgeLengths[rowvals(A)[j]]
+                    
+                end 
+                if energyModel != "ventilation"
+                    F[k, rowvals(B)[i]] += 0.5 * cellPressures[rowvals(B)[i]] * B[rowvals(B)[i], rowvals(A)[j]] * Ā[rowvals(A)[j], k] .* (ϵ * edgeTangents[rowvals(A)[j]])
+                    F[k, rowvals(B)[i]] -= (cellTensions[rowvals(B)[i]])* B̄[rowvals(B)[i], rowvals(A)[j]] * A[rowvals(A)[j], k] .* edgeTangents[rowvals(A)[j]] ./ edgeLengths[rowvals(A)[j]]
+                end
                 # Force on vertex from external pressure 
                 externalF[k] += boundaryVertices[k] * (0.5 * pressureExternal * B[rowvals(B)[i], rowvals(A)[j]] * Ā[rowvals(A)[j], k] .* (ϵ * edgeTangents[rowvals(A)[j]])) # 0 unless boundaryVertices != 0
             end
             # Force on vertex from peripheral tension
+               
+            
             externalF[k] -= boundaryEdges[rowvals(A)[j]] * peripheralTension * (peripheryLength - sqrt(π * nCells)) * A[rowvals(A)[j], k] .* edgeTangents[rowvals(A)[j]] ./ edgeLengths[rowvals(A)[j]]
         end
         

@@ -40,6 +40,7 @@ function spatialData!(R,params,matrices)
         cellPressures,
         edgeLengths,
         edgeTangents,
+        edgeTensions,
         edgeMidpoints,
         edgeMidpointLinks,
         vertexAreas,
@@ -109,7 +110,7 @@ function spatialData!(R,params,matrices)
     elseif energyModel == "ventilation"
         # Ventilation energy model
         # Calculate cell boundary tensions
-        @.. thread = false cellTensions .= 1/l₀ .* (edgeLengths .- 1)   
+        @.. thread = false edgeTensions .=  (edgeLengths .- 1)   
         # Calculate cell internal pressures
         @.. thread = false cellPressures .= cellPᵢs
     else

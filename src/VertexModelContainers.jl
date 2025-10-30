@@ -72,6 +72,7 @@ end
     Γ                ::Vector{Float64}                              # Vector of factors determinind relative strength of cell tension and internal pressure per cell 
     edgeLengths      ::Vector{Float64}                              # Vector of lengths for each edge in the system
     edgeTangents     ::Vector{SVector{2, Float64}}                  # Vector of 2D static vectors containing edge length and direction as a 2D vector
+    edgeTensions    ::Vector{Float64}                              # Vector of scalar edge tensions
     edgeMidpoints    ::Vector{SVector{2, Float64}}                  # Vector of 2D static vectors containing edge midpoints as (x,y) positions
     edgel₀s          ::Vector{Float64}                              # Vector of scalar edge preferred lengths
     edgeMidpointLinks::SparseMatrixCSC{SVector{2, Float64}, Int64}  # Sparse array of vectors connecting adjacent edge midpoints, indexed by adjacent vertex and cell for each midpoint link 
