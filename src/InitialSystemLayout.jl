@@ -22,6 +22,7 @@ using Random
 
 function initialSystemLayout(;
         nRows = 3,
+        boundaryToggle = 0,
         initialEdgeLength = 5.0*0.75/6, # Need to find a better value for this than 5*L₀/6
     )
 
@@ -43,9 +44,10 @@ function initialSystemLayout(;
         ptsArray[2, i] = point[2]
     end
 
+    
     triangulation_unconstrained = triangulate(ptsArray)
     tessellation_constrained = voronoi(triangulation_unconstrained, clip=true)
-
+    
     #Exclude points outside constraining boundary
     usableVertices = Int64[]
     for a in values(tessellation_constrained.polygons)
@@ -53,7 +55,9 @@ function initialSystemLayout(;
     end
     sort!(unique!(usableVertices))
     outerVertices = setdiff(collect(1:num_polygon_vertices(tessellation_constrained)), usableVertices)
-
+    
+    #println(usableVertices)
+    
     # Map vertex indices in tessellation to vertex indices in incidence matrices (after excluding outer vertices)
     vertexIndexingMap = Dict(usableVertices .=> collect(1:length(usableVertices)))
 
@@ -97,34 +101,38 @@ function initialSystemLayout(;
 
     # Prune peripheral vertices with 2 edges that both belong to the same cell
     # Making the assumption that there will never be two such vertices adjacent to each other
-    verticesToRemove = Int64[]
-    edgesToRemove = Int64[]
-    for i = 1:nVerts
-        edges = findall(x -> x != 0, @view A[:, i])
-        cells1 = findall(x -> x != 0, @view B[:, edges[1]])
-        cells2 = findall(x -> x != 0, @view B[:, edges[2]])
-        if cells1 == cells2
-            # If the lists of cells to which both edges of vertex i belong are identical, this implies that the edges are peripheral and only belong to one cell, so edge i should be removed.
-            push!(verticesToRemove, i)
-            push!(edgesToRemove, edges[1])
+    if boundaryToggle != 1
+        verticesToRemove = Int64[]
+        edgesToRemove = Int64[]
+        for i = 1:nVerts
+            edges = findall(x -> x != 0, @view A[:, i])
+            cells1 = findall(x -> x != 0, @view B[:, edges[1]])
+            cells2 = findall(x -> x != 0, @view B[:, edges[2]])
+            if cells1 == cells2
+                # If the lists of cells to which both edges of vertex i belong are identical, this implies that the edges are peripheral and only belong to one cell, so edge i should be removed.
+                push!(verticesToRemove, i)
+                push!(edgesToRemove, edges[1])
+            end
         end
+        for i in verticesToRemove
+            edges = findall(x -> x != 0, @view A[:, i])
+            otherVertexOnEdge1 = setdiff(findall(x -> x != 0, @view A[edges[1], :]), [i])[1]
+            A[edges[2], otherVertexOnEdge1] = A[edges[2], i]
+            A[edges[1], otherVertexOnEdge1] = 0
+        end
+        A = A[setdiff(1:size(A, 1), edgesToRemove), setdiff(1:size(A, 2), verticesToRemove)]
+        B = B[:, setdiff(1:size(B, 2), edgesToRemove)]
+        Rtmp = Rtmp[setdiff(1:size(Rtmp, 1), verticesToRemove)]
+
+        
+
+        senseCheck(A, B; marker="Removing peripheral vertices")
     end
-    for i in verticesToRemove
-        edges = findall(x -> x != 0, @view A[:, i])
-        otherVertexOnEdge1 = setdiff(findall(x -> x != 0, @view A[edges[1], :]), [i])[1]
-        A[edges[2], otherVertexOnEdge1] = A[edges[2], i]
-        A[edges[1], otherVertexOnEdge1] = 0
-    end
-    A = A[setdiff(1:size(A, 1), edgesToRemove), setdiff(1:size(A, 2), verticesToRemove)]
-    B = B[:, setdiff(1:size(B, 2), edgesToRemove)]
-    Rtmp = Rtmp[setdiff(1:size(Rtmp, 1), verticesToRemove)]
 
     R = SVector{2, Float64}[]
     for r in Rtmp 
         push!(R, SVector(initialEdgeLength*(r[1] - (nRows-1)/2 - 1.0 ), initialEdgeLength*r[2]))
     end
-
-    senseCheck(A, B; marker="Removing peropheral vertices")
 
     return A, B, R
 

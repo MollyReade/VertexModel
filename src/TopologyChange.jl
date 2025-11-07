@@ -18,7 +18,7 @@ using DrWatson
 @from "SenseCheck.jl" using SenseCheck
 @from "OrderAroundCell.jl" using OrderAroundCell
 
-function topologyChange!(matrices)
+function topologyChange!(matrices, params)
 
     @unpack A,
         B,
@@ -34,6 +34,7 @@ function topologyChange!(matrices)
         cellEdgeOrders,
         boundaryVertices,
         boundaryEdges = matrices
+    @unpack boundaryToggle = params
 
     # Find adjacency matrices from incidence matrices
     @.. thread = false Ā .= abs.(A)    # All -1 components converted to +1 (In other words, create adjacency matrix Ā from incidence matrix A)
@@ -59,17 +60,21 @@ function topologyChange!(matrices)
     dropzeros!(B̄ᵀ)
 
     # Calculate additional topology data
-    # Number of edges around each cell found by summing columns of B̄
-    cellEdgeCount .= sum.(eachrow(B̄))  # FastBroadcast doesn't work for this line; not sure why
-    #cellEdgeCount .= 6
-    # Find boundary vertices
-    # Summing each column of B finds boundary edges (for all other edges, cell orientations on either side cancel);
-    # multiplying by Aᵀ gives nonzero values only where a vertex (row) has nonzero values at columns (edges) corresponding to nonzero values in the list of boundary edges.
-    # Note that the abs is needed in case the direction of boundary edges cancel at a vertex
-    #boundaryVertices .= Āᵀ * abs.(sum.(eachcol(B))) .÷ 2
 
-    # Find list of edges at system periphery
-    #boundaryEdges .= abs.([sum(x) for x in eachcol(B)])
+    cellEdgeCount .= sum.(eachrow(B̄))
+
+    if boundaryToggle == 1
+        # Find boundary vertices
+        # Summing each column of B finds boundary edges (for all other edges, cell orientations on either side cancel);
+        # multiplying by Aᵀ gives nonzero values only where a vertex (row) has nonzero values at columns (edges) corresponding to nonzero values in the list of boundary edges.
+        # Note that the abs is needed in case the direction of boundary edges cancel at a vertex
+        boundaryVertices .= Āᵀ * abs.(sum.(eachcol(B))) .÷ 2
+        #Find a list of edges at system periphery
+        boundaryEdges .= abs.([sum(x) for x in eachcol(B)])
+    end
+    # Number of edges around each cell found by summing columns of B̄
+      # FastBroadcast doesn't work for this line; not sure why
+    #cellEdgeCount .= 6
 
     for i = 1:length(cellVertexOrders)
         cellVertexOrders[i], cellEdgeOrders[i] = orderAroundCell(matrices, i)
