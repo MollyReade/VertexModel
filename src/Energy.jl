@@ -33,7 +33,7 @@ function energy(params,matrices)
         cellPᵢs= matrices
     @unpack energyModel,
     l₀ = params
-    
+    print(stacktrace())
     if energyModel == "log"
         # Logarithmic energy
         energyTotal
@@ -43,7 +43,7 @@ function energy(params,matrices)
     elseif energyModel == "ventilation"
         # Ventilation energy
         tens_sum = B̄*(edgeLengths.-1).^2
-        energyTotal = 0
+        energyTotal 
         for i = 1:nCells
             
             energyTotal += UVᵢ.(cellAreas[i], edgeLengths[i], l₀, cellPᵢs[i],tens_sum[i])

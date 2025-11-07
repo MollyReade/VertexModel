@@ -32,7 +32,7 @@ function initialise(; initialSystem = "new",
         L₀ = 0.75,
         l₀ = 0.15,
         A₀ = 1.0,
-        Pᵢ = 0.75,
+        Pᵢ = 0.2,
         pressureExternal = 0.0,
         viscousTimeScale = 1000.0,
         boundaryToggle = 0,
@@ -65,7 +65,7 @@ function initialise(; initialSystem = "new",
     # Initialise system matrices from function or file
     if initialSystem == "new"
         isodd(nRows) && (nRows>1)  ? nothing : throw("nRows must be an odd number greater than 1.")
-        A, B, R = initialSystemLayout(nRows=nRows, initialEdgeLength=initialEdgeLength=5*L₀/6)
+        A, B, R = initialSystemLayout(nRows=nRows,boundaryToggle=boundaryToggle, initialEdgeLength=initialEdgeLength=5*L₀/6)
         cellTimeToDivide = rand(rng,Uniform(0.0, nonDimCycleTime), size(B, 1))  # Random initial cell ages
     elseif initialSystem == "argument"
         R = R_in
@@ -164,7 +164,9 @@ function initialise(; initialSystem = "new",
     )
 
     # Initial evaluation of matrices based on system topology
-    topologyChange!(matrices)
+    
+
+    topologyChange!(matrices, params)
     spatialData!(R, params, matrices)
 
     # Convert vector of SVectors to flat vector of Float64
