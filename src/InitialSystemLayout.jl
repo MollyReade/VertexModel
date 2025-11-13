@@ -24,6 +24,7 @@ function initialSystemLayout(;
         nRows = 3,
         boundaryToggle = 0,
         initialEdgeLength = 5.0*0.75/6, # Need to find a better value for this than 5*L₀/6
+        edgeCellsToggle = 0
     )
 
     # nRows = 9 # Must be an odd number
@@ -101,7 +102,7 @@ function initialSystemLayout(;
 
     # Prune peripheral vertices with 2 edges that both belong to the same cell
     # Making the assumption that there will never be two such vertices adjacent to each other
-    if boundaryToggle != 1
+    if boundaryToggle == 1
         verticesToRemove = Int64[]
         edgesToRemove = Int64[]
         for i = 1:nVerts
@@ -134,7 +135,41 @@ function initialSystemLayout(;
         push!(R, SVector(initialEdgeLength*(r[1] - (nRows-1)/2 - 1.0 ), initialEdgeLength*r[2]))
     end
 
+    if edgeCellsToggle == 0
+        A, B, R = removeBoundaryCells(A,B,R)
+    end
+
     return A, B, R
+
+end
+
+function removeBoundaryCells(A,B,R)
+
+    nVerts = size(A)[2]
+    nEdges = size(A)[1]
+    nCells = size(B)[1]
+
+    #Find how many cells each edge belongs to
+    edgesP = vec((abs.(ones(nCells)'*B)))
+    #Find which vertices belong to peripheral edges
+    vertsP = vec((0.5.*edgesP'*abs.(A))')
+    #Edges connected to boundary vertices
+    edgesB = vec(abs.(A*(ones(nVerts).-vertsP)))
+    #Edges without peripheral edges or edges connected to boundary vertices
+    edgesI = vec(ones(nEdges).-edgesB.-edgesP)
+    #1 for interior vertices, 0 for boundary vertices
+    vertsI = vec(ones(nVerts) - vertsP)
+    #1 if cell has a boundary edge, 0 otherwise
+    cellsB = vec(abs.(abs.(B)*edgesP))
+    cellsB[findall(x -> x != 0, cellsB)] .= 1
+    #1 if interior cell, 0 otherwise
+    cellsI=ones(nCells)-cellsB
+
+    #A,B,R with only interior cells, edges and vertices
+    Bint = B[cellsI.>0,edgesI.>0]
+    Aint = A[edgesI.>0,vertsI.>0]
+    Rint = R[vertsI.>0]
+    return Aint,Bint,Rint
 
 end
 

@@ -36,6 +36,7 @@ function initialise(; initialSystem = "new",
         pressureExternal = 0.0,
         viscousTimeScale = 1000.0,
         boundaryToggle = 0,
+        edgeCellsToggle = 0,
         outputTotal = 100,
         t1Threshold = 0.05,
         peripheralTension = 0.0,
@@ -65,7 +66,7 @@ function initialise(; initialSystem = "new",
     # Initialise system matrices from function or file
     if initialSystem == "new"
         isodd(nRows) && (nRows>1)  ? nothing : throw("nRows must be an odd number greater than 1.")
-        A, B, R = initialSystemLayout(nRows=nRows,boundaryToggle=boundaryToggle, initialEdgeLength=initialEdgeLength=5*L₀/6)
+        A, B, R = initialSystemLayout(nRows=nRows,boundaryToggle=boundaryToggle, initialEdgeLength=initialEdgeLength=5*L₀/6, edgeCellsToggle=edgeCellsToggle)
         cellTimeToDivide = rand(rng,Uniform(0.0, nonDimCycleTime), size(B, 1))  # Random initial cell ages
     elseif initialSystem == "argument"
         R = R_in
@@ -146,6 +147,7 @@ function initialise(; initialSystem = "new",
         Pᵢ                = Pᵢ,
         pressureExternal  = pressureExternal,
         boundaryToggle    = boundaryToggle,
+        edgeCellsToggle  = edgeCellsToggle,
         outputTotal       = outputTotal,
         outputInterval    = outputInterval,
         viscousTimeScale  = viscousTimeScale,

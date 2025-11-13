@@ -25,6 +25,7 @@ using CircularArrays
     Pᵢ                 ::Float64            # Internal pressure per cell
     pressureExternal   ::Float64            # External pressure applied uniformly to system
     boundaryToggle     ::Bool              # Flag controlling whether boundary conditions are applied
+    edgeCellsToggle    ::Bool              # Flag controlling whether edge cells are included in the system
     outputTotal        ::Int64              # Total number of data outputs
     outputInterval     ::Float64            # Non dimensionalised data output interval
     viscousTimeScale   ::Float64            # Relaxation rate, approx from Sarah's data.
