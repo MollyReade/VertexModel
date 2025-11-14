@@ -17,6 +17,8 @@ using SparseArrays
 using StaticArrays
 using CairoMakie
 using Printf
+using OrdinaryDiffEqSDIRK
+using DifferentialEquations
 
 # Local modules
 @from "CreateRunDirectory.jl" using CreateRunDirectory
@@ -40,13 +42,14 @@ function vertexModel(;
     L₀ = 0.75,
     l₀ = 0.15,
     A₀ = 1.0,
-    Pᵢ = 0.75,
+    Pᵢ = 0.9,
     viscousTimeScale = 1000.0,
     pressureExternal = 0.0,
     peripheralTension = 0.0,
     t1Threshold = 0.00,
     divisionToggle = 0,
-    boundaryToggle = 0,
+    boundaryToggle = 1,
+    edgeCellsToggle = 1,
     solver = Tsit5(),
     nBlasThreads = 1,
     subFolder = "",
@@ -65,8 +68,8 @@ function vertexModel(;
     randomSeed = 0,
     abstol = 1e-7, 
     reltol = 1e-4,
-    energyModel = "ventilation",
-    vertexWeighting = 1,
+    energyModel = "ventilation_rational",
+    vertexWeighting = 0,
     R_in = spzeros(2),
     A_in = spzeros(2),
     B_in = spzeros(2), 
@@ -85,6 +88,7 @@ function vertexModel(;
         pressureExternal = pressureExternal,
         viscousTimeScale = viscousTimeScale,
         boundaryToggle = boundaryToggle,
+        edgeCellsToggle = edgeCellsToggle,
         outputTotal = outputTotal,
         t1Threshold = t1Threshold,
         realCycleTime = realCycleTime,
@@ -110,7 +114,11 @@ function vertexModel(;
     # Set up ODE integrator 
     prob = ODEProblem(model!, u0, (0.0, Inf), (params, matrices))
     alltStops = collect(0.0:params.outputInterval:params.tMax) # Time points that the solver will be forced to land at during integration
-    integrator = init(prob, solver, tstops=alltStops, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
+    if energyModel == "log"
+        integrator = init(prob, Tsit5(), tstops=alltStops, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
+    else
+        integrator = init(prob, solver, tstops=alltStops, abstol=abstol, reltol=reltol)
+    end
     outputCounter = [1]
 
     # Iterate until integrator time reaches max system time 
@@ -147,14 +155,14 @@ function vertexModel(;
         if t1Transitions!(integrator, params, matrices) > 0
             u_modified!(integrator, true)
             # senseCheck(matrices.A, matrices.B; marker="T1") # Check for nonzero values in B*A indicating error in incidence matrices           
-            topologyChange!(matrices) # Update system matrices after T1 transition
+            topologyChange!(matrices, params) # Update system matrices after T1 transition
             spatialData!(R, params, matrices) # Update spatial data after T1 transition  
         end
         if divisionToggle==1
             if division!(integrator, params, matrices) > 0
                 u_modified!(integrator, true)
                 # senseCheck(matrices.A, matrices.B; marker="division") # Check for nonzero values in B*A indicating error in incidence matrices          
-                topologyChange!(matrices) # Update system matrices after division 
+                topologyChange!(matrices, params) # Update system matrices after division 
                 spatialData!(R, params, matrices) # Update spatial data after division 
             end
         end

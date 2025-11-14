@@ -27,6 +27,7 @@ function resizeMatrices!(params, matrices, nVertsNew, nEdgesNew, nCellsNew)
     matrices.B̄ᵀ                = spzeros(Int64, nEdgesNew, nCellsNew)
     matrices.C                 = spzeros(Int64, nCellsNew, nVertsNew)
     matrices.F                 = spzeros(SVector{2,Float64}, nVertsNew, nCellsNew)
+    matrices.FEdges            = spzeros(SVector{2,Float64}, nVertsNew)
     matrices.edgeMidpointLinks = spzeros(SVector{2,Float64}, nCellsNew, nVertsNew)
     
     # Remove components from stored vectors

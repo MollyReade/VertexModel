@@ -22,7 +22,9 @@ using Random
 
 function initialSystemLayout(;
         nRows = 3,
+        boundaryToggle = 0,
         initialEdgeLength = 5.0*0.75/6, # Need to find a better value for this than 5*L₀/6
+        edgeCellsToggle = 0
     )
 
     # nRows = 9 # Must be an odd number
@@ -43,9 +45,10 @@ function initialSystemLayout(;
         ptsArray[2, i] = point[2]
     end
 
+    
     triangulation_unconstrained = triangulate(ptsArray)
     tessellation_constrained = voronoi(triangulation_unconstrained, clip=true)
-
+    
     #Exclude points outside constraining boundary
     usableVertices = Int64[]
     for a in values(tessellation_constrained.polygons)
@@ -53,7 +56,9 @@ function initialSystemLayout(;
     end
     sort!(unique!(usableVertices))
     outerVertices = setdiff(collect(1:num_polygon_vertices(tessellation_constrained)), usableVertices)
-
+    
+    #println(usableVertices)
+    
     # Map vertex indices in tessellation to vertex indices in incidence matrices (after excluding outer vertices)
     vertexIndexingMap = Dict(usableVertices .=> collect(1:length(usableVertices)))
 
@@ -97,36 +102,74 @@ function initialSystemLayout(;
 
     # Prune peripheral vertices with 2 edges that both belong to the same cell
     # Making the assumption that there will never be two such vertices adjacent to each other
-    verticesToRemove = Int64[]
-    edgesToRemove = Int64[]
-    for i = 1:nVerts
-        edges = findall(x -> x != 0, @view A[:, i])
-        cells1 = findall(x -> x != 0, @view B[:, edges[1]])
-        cells2 = findall(x -> x != 0, @view B[:, edges[2]])
-        if cells1 == cells2
-            # If the lists of cells to which both edges of vertex i belong are identical, this implies that the edges are peripheral and only belong to one cell, so edge i should be removed.
-            push!(verticesToRemove, i)
-            push!(edgesToRemove, edges[1])
+    if boundaryToggle == 1
+        verticesToRemove = Int64[]
+        edgesToRemove = Int64[]
+        for i = 1:nVerts
+            edges = findall(x -> x != 0, @view A[:, i])
+            cells1 = findall(x -> x != 0, @view B[:, edges[1]])
+            cells2 = findall(x -> x != 0, @view B[:, edges[2]])
+            if cells1 == cells2
+                # If the lists of cells to which both edges of vertex i belong are identical, this implies that the edges are peripheral and only belong to one cell, so edge i should be removed.
+                push!(verticesToRemove, i)
+                push!(edgesToRemove, edges[1])
+            end
         end
+        for i in verticesToRemove
+            edges = findall(x -> x != 0, @view A[:, i])
+            otherVertexOnEdge1 = setdiff(findall(x -> x != 0, @view A[edges[1], :]), [i])[1]
+            A[edges[2], otherVertexOnEdge1] = A[edges[2], i]
+            A[edges[1], otherVertexOnEdge1] = 0
+        end
+        A = A[setdiff(1:size(A, 1), edgesToRemove), setdiff(1:size(A, 2), verticesToRemove)]
+        B = B[:, setdiff(1:size(B, 2), edgesToRemove)]
+        Rtmp = Rtmp[setdiff(1:size(Rtmp, 1), verticesToRemove)]
+
+        
+
+        senseCheck(A, B; marker="Removing peripheral vertices")
     end
-    for i in verticesToRemove
-        edges = findall(x -> x != 0, @view A[:, i])
-        otherVertexOnEdge1 = setdiff(findall(x -> x != 0, @view A[edges[1], :]), [i])[1]
-        A[edges[2], otherVertexOnEdge1] = A[edges[2], i]
-        A[edges[1], otherVertexOnEdge1] = 0
-    end
-    A = A[setdiff(1:size(A, 1), edgesToRemove), setdiff(1:size(A, 2), verticesToRemove)]
-    B = B[:, setdiff(1:size(B, 2), edgesToRemove)]
-    Rtmp = Rtmp[setdiff(1:size(Rtmp, 1), verticesToRemove)]
 
     R = SVector{2, Float64}[]
     for r in Rtmp 
         push!(R, SVector(initialEdgeLength*(r[1] - (nRows-1)/2 - 1.0 ), initialEdgeLength*r[2]))
     end
 
-    senseCheck(A, B; marker="Removing peropheral vertices")
+    if edgeCellsToggle == 0
+        A, B, R = removeBoundaryCells(A,B,R)
+    end
 
     return A, B, R
+
+end
+
+function removeBoundaryCells(A,B,R)
+
+    nVerts = size(A)[2]
+    nEdges = size(A)[1]
+    nCells = size(B)[1]
+
+    #Find how many cells each edge belongs to
+    edgesP = vec((abs.(ones(nCells)'*B)))
+    #Find which vertices belong to peripheral edges
+    vertsP = vec((0.5.*edgesP'*abs.(A))')
+    #Edges connected to boundary vertices
+    edgesB = vec(abs.(A*(ones(nVerts).-vertsP)))
+    #Edges without peripheral edges or edges connected to boundary vertices
+    edgesI = vec(ones(nEdges).-edgesB.-edgesP)
+    #1 for interior vertices, 0 for boundary vertices
+    vertsI = vec(ones(nVerts) - vertsP)
+    #1 if cell has a boundary edge, 0 otherwise
+    cellsB = vec(abs.(abs.(B)*edgesP))
+    cellsB[findall(x -> x != 0, cellsB)] .= 1
+    #1 if interior cell, 0 otherwise
+    cellsI=ones(nCells)-cellsB
+
+    #A,B,R with only interior cells, edges and vertices
+    Bint = B[cellsI.>0,edgesI.>0]
+    Aint = A[edgesI.>0,vertsI.>0]
+    Rint = R[vertsI.>0]
+    return Aint,Bint,Rint
 
 end
 

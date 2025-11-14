@@ -31,6 +31,7 @@ function model!(du, u, p, t)
         edgeTangents,
         edgeTensions,
         F,
+        FEdges,
         externalF,
         ϵ,
         boundaryVertices,
@@ -52,37 +53,52 @@ function model!(du, u, p, t)
 
     fill!(F, @SVector zeros(2))
     dropzeros!(F)
+    fill!(FEdges, @SVector zeros(2))
+    dropzeros!(FEdges)
     fill!(externalF, @SVector zeros(2))
 
     peripheryLength = sum(boundaryEdges .* edgeLengths)
 
-    for k = 1:nVerts
-        for j in nzrange(A, k)
-            for i in nzrange(B, rowvals(A)[j])
-                # Force components from cell pressure perpendicular to edge tangents 
-                # Force components from cell membrane tension parallel to edge tangents 
-                if energyModel == "ventilation"
-                    # Ventilation energy model
-                    F[k, rowvals(B)[i]] -= 0.5 * cellPressures[rowvals(B)[i]] * B[rowvals(B)[i], rowvals(A)[j]] * Ā[rowvals(A)[j], k] .* (ϵ * edgeTangents[rowvals(A)[j]])
-                    F[k, rowvals(B)[i]] -= (edgeTensions[rowvals(A)[j]]) * A[rowvals(A)[j], k] .* edgeTangents[rowvals(A)[j]] ./ edgeLengths[rowvals(A)[j]]
-                    
-                end 
-                if energyModel != "ventilation"
-                    F[k, rowvals(B)[i]] += 0.5 * cellPressures[rowvals(B)[i]] * B[rowvals(B)[i], rowvals(A)[j]] * Ā[rowvals(A)[j], k] .* (ϵ * edgeTangents[rowvals(A)[j]])
-                    F[k, rowvals(B)[i]] -= (cellTensions[rowvals(B)[i]])* B̄[rowvals(B)[i], rowvals(A)[j]] * A[rowvals(A)[j], k] .* edgeTangents[rowvals(A)[j]] ./ edgeLengths[rowvals(A)[j]]
-                end
-                # Force on vertex from external pressure 
-                externalF[k] += boundaryVertices[k] * (0.5 * pressureExternal * B[rowvals(B)[i], rowvals(A)[j]] * Ā[rowvals(A)[j], k] .* (ϵ * edgeTangents[rowvals(A)[j]])) # 0 unless boundaryVertices != 0
-            end
-            # Force on vertex from peripheral tension
-               
-            
-            externalF[k] -= boundaryEdges[rowvals(A)[j]] * peripheralTension * (peripheryLength - sqrt(π * nCells)) * A[rowvals(A)[j], k] .* edgeTangents[rowvals(A)[j]] ./ edgeLengths[rowvals(A)[j]]
-        end
-        
-        dR[k] = (sum(@view F[k, :]) .+ externalF[k])
-    end
     
+
+    if startswith(energyModel, "ventilation")
+        for k = 1:nVerts
+            for j in nzrange(A, k)
+                for i in nzrange(B, rowvals(A)[j])
+                    # Force components from cell pressure perpendicular to edge tangents 
+                    F[k, rowvals(B)[i]] += 0.5 * cellPressures[rowvals(B)[i]] * B[rowvals(B)[i], rowvals(A)[j]] * Ā[rowvals(A)[j], k] .* (ϵ * edgeTangents[rowvals(A)[j]])
+                    externalF[k] += boundaryVertices[k] * (0.5 * pressureExternal * B[rowvals(B)[i], rowvals(A)[j]] * Ā[rowvals(A)[j], k] .* (ϵ * edgeTangents[rowvals(A)[j]])) # 0 unless boundaryVertices != 0
+                end
+                #Force component from edge tension on vertex k
+                FEdges[k] -= edgeTensions[rowvals(A)[j]] * A[rowvals(A)[j], k] .* edgeTangents[rowvals(A)[j]] ./ edgeLengths[rowvals(A)[j]]
+                # Force on vertex from peripheral tension
+                externalF[k] -= boundaryEdges[rowvals(A)[j]] * peripheralTension * (peripheryLength - sqrt(π * nCells)) * A[rowvals(A)[j], k] .* edgeTangents[rowvals(A)[j]] ./ edgeLengths[rowvals(A)[j]]
+            
+            end
+            dR[k] = (sum(@view F[k, :]) .+ externalF[k] .+ FEdges[k])
+        end
+    else
+        for k = 1:nVerts
+            for j in nzrange(A, k)
+                for i in nzrange(B, rowvals(A)[j])
+                    # Force components from cell pressure perpendicular to edge tangents 
+                    F[k, rowvals(B)[i]] += 0.5 * cellPressures[rowvals(B)[i]] * B[rowvals(B)[i], rowvals(A)[j]] * Ā[rowvals(A)[j], k] .* (ϵ * edgeTangents[rowvals(A)[j]])
+                    # Force components from cell membrane tension parallel to edge tangents 
+                    F[k, rowvals(B)[i]] -= cellTensions[rowvals(B)[i]] * B̄[rowvals(B)[i], rowvals(A)[j]] * A[rowvals(A)[j], k] .* edgeTangents[rowvals(A)[j]] ./ edgeLengths[rowvals(A)[j]]
+                    #F[k, rowvals(B)[i]] -= cellTensions[rowvals(B)[i]] * A[rowvals(A)[j], k] .* edgeTangents[rowvals(A)[j]] ./ edgeLengths[rowvals(A)[j]]
+                    # Force on vertex from external pressure 
+                    externalF[k] += boundaryVertices[k] * (0.5 * pressureExternal * B[rowvals(B)[i], rowvals(A)[j]] * Ā[rowvals(A)[j], k] .* (ϵ * edgeTangents[rowvals(A)[j]])) # 0 unless boundaryVertices != 0
+                    #externalF[k] -= peripheralTension
+                end
+                # Force on vertex from peripheral tension
+                externalF[k] -= boundaryEdges[rowvals(A)[j]] * peripheralTension * (peripheryLength - sqrt(π * nCells)) * A[rowvals(A)[j], k] .* edgeTangents[rowvals(A)[j]] ./ edgeLengths[rowvals(A)[j]]
+                #externalF[k] -= boundaryEdges[rowvals(A)[j]] * peripheralTension * A[rowvals(A)[j], k] .* edgeTangents[rowvals(A)[j]] ./ edgeLengths[rowvals(A)[j]]
+            end
+            
+            dR[k] = (sum(@view F[k, :]) .+ externalF[k])
+        end
+    end
+
     vertexWeighting == 1 ? dR ./= vertexAreas : nothing 
 
     # dR accesses the same underlying data as du, so by altering dR we have already updated du appropriately
