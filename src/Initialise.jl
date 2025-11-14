@@ -124,6 +124,7 @@ function initialise(; initialSystem = "new",
         timeSinceT1       = zeros(nEdges),
         vertexAreas       = ones(nVerts),
         F                 = spzeros(SVector{2,Float64}, nVerts, nCells),
+        FEdges            = spzeros(SVector{2,Float64}, nVerts),
         externalF         = fill(SVector{2,Float64}(zeros(2)), nVerts),
         totalF            = fill(SVector{2,Float64}(zeros(2)), nVerts),
         ϵ                 = SMatrix{2, 2, Float64}([
