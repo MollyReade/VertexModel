@@ -21,6 +21,7 @@ using SparseArrays
 using CircularArrays
 using FromFile
 using DrWatson
+using Statistics
 
 # Local modules
 @from "OrderAroundCell.jl" using OrderAroundCell
@@ -34,6 +35,7 @@ function visualise(R, t, fig, ax, mov, params, matrices, plotCells, scatterEdges
         cellPositions,
         edgeMidpoints,
         F,
+        FEdges,
         edgeMidpointLinks,
         μ = matrices
     @unpack nEdges,
@@ -73,7 +75,7 @@ function visualise(R, t, fig, ax, mov, params, matrices, plotCells, scatterEdges
     # Plot resultant forces on vertices (excluding external pressure)
     # NB these forces will be those calculated in the previous integration step and thus will not be exactly up to date for the current vertex positions
     if plotForces == 1
-        arrows!(ax, Point{2,Float64}.(R), Vec2f.(sum(F, dims=2)), color=:green)
+        arrows!(ax, Point{2,Float64}.(R), Vec2f.(sum(F.+FEdges, dims=2)), color=:green)
     end
 
     if plotEdgeMidpointLinks == 1
@@ -88,6 +90,7 @@ function visualise(R, t, fig, ax, mov, params, matrices, plotCells, scatterEdges
     end
 
     # Set limits
+    add_ruler!(ax,matrices,params)
     reset_limits!(ax)
 
     # Add frame to movie 
@@ -95,6 +98,24 @@ function visualise(R, t, fig, ax, mov, params, matrices, plotCells, scatterEdges
 
     return nothing
 
+end
+
+function add_ruler!(ax, matrices, params; xpos_frac=0.1, ypos_frac=0.01)
+
+    @unpack edgeLengths = matrices
+    @unpack nRows = params
+    
+    xrange = Statistics.mean(edgeLengths)*(nRows÷2 + 1)
+
+    
+    xstart =  xpos_frac 
+    xend = xstart + xrange
+    ypos = -Statistics.mean(edgeLengths)*(nRows÷2 + 1.5)
+
+
+    lines!(ax,[xstart, xend], [ypos - 0.01 * xrange, ypos + 0.01 * xrange], color=:red, linewidth=5)
+
+    text!(ax, string(round(xrange, sigdigits=3)), position=((xstart+xend)/2, ypos + 0.02 * xrange), color=:red, align = (:center, :bottom), fontsize=20)
 end
 
 export visualise

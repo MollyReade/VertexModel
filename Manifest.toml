@@ -2,7 +2,7 @@
 
 julia_version = "1.12.1"
 manifest_format = "2.0"
-project_hash = "f69c19a36e599aa89a9188d5f4be2945520a905d"
+project_hash = "0273bfbf9be3d8b6b2625a47ca44dd22756df04b"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "27cecae79e5cc9935255f90c53bb831cc3c870d7"
@@ -2805,7 +2805,7 @@ version = "1.25.1"
     Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [[deps.VertexModel]]
-deps = ["CairoMakie", "CircularArrays", "ColorSchemes", "Colors", "Dates", "DelaunayTriangulation", "DifferentialEquations", "Distributions", "DrWatson", "FastBroadcast", "FromFile", "GeometryBasics", "JLD2", "LaTeXStrings", "LibGit2", "LinearAlgebra", "Makie", "OrdinaryDiffEq", "OrdinaryDiffEqSDIRK", "PrecompileTools", "Printf", "Random", "Revise", "SparseArrays", "StaticArrays", "StatsBase", "UnPack"]
+deps = ["CairoMakie", "CircularArrays", "ColorSchemes", "Colors", "Dates", "DelaunayTriangulation", "DifferentialEquations", "Distributions", "DrWatson", "FastBroadcast", "FromFile", "GeometryBasics", "JLD2", "LaTeXStrings", "LibGit2", "LinearAlgebra", "Makie", "Observables", "OrdinaryDiffEq", "OrdinaryDiffEqSDIRK", "PrecompileTools", "Printf", "Random", "Revise", "SparseArrays", "StaticArrays", "StatsBase", "UnPack"]
 path = "."
 uuid = "514bac63-329a-430c-b146-740bf51d96fc"
 version = "0.1.0"

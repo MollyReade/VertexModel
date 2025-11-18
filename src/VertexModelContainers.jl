@@ -33,6 +33,7 @@ using CircularArrays
     tMax               ::Float64            # Non dimensionalised run time
     realCycleTime      ::Float64            # Cell cycle time in seconds
     nCycles            ::Float64            # Number of cell cycles in simulation 
+    nRows              ::Int64              # Number of rows of cells in initial system
     nonDimCycleTime    ::Float64            # Non dimensionalised cell cycle time
     t1Threshold        ::Float64            # Length of edge below which a T1 transition occurs
     peripheralTension  ::Float64            # Tension at system periphery
