@@ -42,6 +42,7 @@ using CircularArrays
     distLogNormal      ::LogNormal{Float64} # Log normal distribution 
     energyModel        ::String             # Choice of energy function (eg log, quadratic)
     vertexWeighting    ::Bool               # Flag controlling whether vertices experience drag proportional to their surrounding area 
+    folderName         ::String             # Name of directory in which simulation results are stored
 end
 
 @kwdef mutable struct MatricesContainer

@@ -64,7 +64,10 @@ function initialise(; initialSystem = "new",
     rng = MersenneTwister(seed)
 
     # Initialise system matrices from function or file
-    if initialSystem == "new"
+    if initialSystem in ["one"]
+        A,B,R = initialSmallConfig("one")
+        cellTimeToDivide = rand(rng,Uniform(0.0, nonDimCycleTime), size(B, 1))  # Random initial cell ages
+    elseif initialSystem == "new"
         isodd(nRows) && (nRows>1)  ? nothing : throw("nRows must be an odd number greater than 1.")
         A, B, R = initialSystemLayout(nRows=nRows,boundaryToggle=boundaryToggle, initialEdgeLength=initialEdgeLength=5*L₀/6, edgeCellsToggle=edgeCellsToggle)
         cellTimeToDivide = rand(rng,Uniform(0.0, nonDimCycleTime), size(B, 1))  # Random initial cell ages
@@ -165,6 +168,7 @@ function initialise(; initialSystem = "new",
         distLogNormal     = LogNormal(0.0, 0.2),
         energyModel       = energyModel,
         vertexWeighting   = vertexWeighting,
+        folderName        = ""
     )
 
     # Initial evaluation of matrices based on system topology

@@ -111,8 +111,6 @@ function spatialData!(R,params,matrices)
         # Ventilation energy model
         # Calculate cell boundary tensions
         @.. thread = false edgeTensions .=  (edgeLengths .- 1)   
-        #println("Result of B̄ * edgeTensions: ", cellTensions - B̄ * edgeTensions)
-        #cellTensions = B̄ * edgeTensions
         # Calculate cell internal pressures
         @.. thread = false cellPressures .= -cellPᵢs
     elseif energyModel == "ventilation_rational"
@@ -120,9 +118,7 @@ function spatialData!(R,params,matrices)
         #Aα^n + Bα^-m + C
         #A = 1/n(n+m), B = 1/m(n+m), C = -1/mn
         # Calculate cell boundary tensions
-        @.. thread = false edgeTensions .=  (edgeLengths.^4 .- edgeLengths.^(-2)) ./ 6  
-        #println("Result of B̄ * edgeTensions: ", cellTensions - B̄ * edgeTensions)
-        #cellTensions = B̄ * edgeTensions
+        @.. thread = false edgeTensions .=  (edgeLengths.^2 .- edgeLengths.^(-3)) ./ 6  
         # Calculate cell internal pressures
         @.. thread = false cellPressures .= -cellPᵢs
     else

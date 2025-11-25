@@ -41,6 +41,7 @@ function model!(du, u, p, t)
         nCells,
         nEdges,
         pressureExternal,
+        boundaryToggle,
         peripheralTension,
         vertexWeighting,
         energyModel = params
@@ -96,6 +97,14 @@ function model!(du, u, p, t)
             end
             
             dR[k] = (sum(@view F[k, :]) .+ externalF[k])
+        end
+    end
+
+    if boundaryToggle == 1
+        for k = 1:nVerts
+            if boundaryVertices[k] != 1
+                dR[k] = @SVector zeros(2)
+            end
         end
     end
 

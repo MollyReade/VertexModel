@@ -33,7 +33,7 @@ using DifferentialEquations
 @from "SenseCheck.jl" using SenseCheck
 
 function vertexModel(;
-    initialSystem = "new",
+    initialSystem = "one",
     nRows = 3,
     nCycles = 1,
     realCycleTime = 86400.0,
@@ -42,14 +42,14 @@ function vertexModel(;
     L₀ = 0.75,
     l₀ = 0.15,
     A₀ = 1.0,
-    Pᵢ = 0.9,
+    Pᵢ = 1.1,
     viscousTimeScale = 1000.0,
     pressureExternal = 0.0,
     peripheralTension = 0.0,
     t1Threshold = 0.00,
     divisionToggle = 0,
-    boundaryToggle = 1,
-    edgeCellsToggle = 1,
+    boundaryToggle = 0,
+    edgeCellsToggle = 0,
     solver = Tsit5(),
     nBlasThreads = 1,
     subFolder = "",
@@ -72,7 +72,11 @@ function vertexModel(;
     vertexWeighting = 0,
     R_in = spzeros(2),
     A_in = spzeros(2),
-    B_in = spzeros(2), 
+    B_in = spzeros(2),
+    existingMov = nothing,
+    existingFig = nothing,
+    existingAx = nothing,
+    returnPlots = false
 ) # All arguments are optional and will be instantiated with these default values if not provided at runtime
 
     BLAS.set_num_threads(nBlasThreads)
@@ -101,13 +105,22 @@ function vertexModel(;
         A_in = A_in,
         B_in = B_in,
     )
-
+    fig = existingFig !== nothing ? existingFig : nothing
+    ax  = existingAx  !== nothing ? existingAx  : nothing
+    mov = existingMov !== nothing ? existingMov : nothing
     # Create directory in which to store date. Save parameters and store directory name for later use.
     if outputToggle == 1
+        subFolder=energyModel
         folderName = createRunDirectory(params,subFolder)
+        params.folderName = folderName
+        
         # Create plot object for later use 
-        if frameImageToggle==1 || videoToggle==1
+        if (frameImageToggle==1 || videoToggle==1) && isnothing(mov)
             fig, ax, mov = plotSetup()
+        elseif (frameImageToggle==1 || videoToggle==1)
+            fig= existingFig
+            ax= existingAx
+            mov= existingMov
         end
     end
 
@@ -134,6 +147,7 @@ function vertexModel(;
             printToggle == 1 ? println("$(@sprintf("%.2f", integrator.t))/$(@sprintf("%.2f", params.tMax)), $(outputCounter[1])/$outputTotal") : nothing            
             if frameDataToggle == 1
                 # Save system data to file 
+                
                 jldsave(datadir(folderName, "frameData", "systemData$(@sprintf("%03d", outputCounter[1])).jld2"); matrices, params, R)
             end
             if frameImageToggle == 1 || videoToggle == 1
@@ -172,9 +186,13 @@ function vertexModel(;
     end
 
     # If outputToggle==1, save animation object and save final system matrices
-    (outputToggle == 1 && videoToggle == 1) ? save(datadir(folderName, "$(splitpath(folderName)[end]).mp4"), mov) : nothing
+    (outputToggle == 1 && videoToggle == 1 && isnothing(existingMov)) ? save(datadir(folderName, "$(splitpath(folderName)[end]).mp4"), mov) : nothing
 
-    return integrator
+    if returnPlots
+        return integrator, fig, ax, mov
+    else
+        return integrator
+    end
 end
 
 # Function to load previously saved simulation data 

@@ -34,7 +34,8 @@ function createRunDirectory(params,subFolder)
         l₀,
         outputInterval,
         tMax,
-        nonDimCycleTime = params
+        nonDimCycleTime,
+        folderName = params
 
     repo = LibGit2.GitRepo(projectdir())
     branchname = LibGit2.shortname(LibGit2.head(repo))

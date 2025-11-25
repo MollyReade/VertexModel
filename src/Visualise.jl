@@ -40,11 +40,12 @@ function visualise(R, t, fig, ax, mov, params, matrices, plotCells, scatterEdges
         μ = matrices
     @unpack nEdges,
         nVerts,
-        nCells = params
+        nCells,
+        Pᵢ = params
 
     empty!(ax)
 
-    ax.title = "t = $(@sprintf("%.3f", t))"
+    ax.title = "t = $(@sprintf("%.3f", t)), Pᵢ = $(@sprintf("%.3f", mean(Pᵢ)))"
 
     # Plot cells
     if plotCells == 1

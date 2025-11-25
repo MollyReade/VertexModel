@@ -34,7 +34,8 @@ function topologyChange!(matrices, params)
         cellEdgeOrders,
         boundaryVertices,
         boundaryEdges = matrices
-    @unpack boundaryToggle = params
+    @unpack boundaryToggle,
+    edgeCellsToggle = params
 
     # Find adjacency matrices from incidence matrices
     @.. thread = false Ā .= abs.(A)    # All -1 components converted to +1 (In other words, create adjacency matrix Ā from incidence matrix A)
@@ -63,15 +64,21 @@ function topologyChange!(matrices, params)
 
     cellEdgeCount .= sum.(eachrow(B̄))
 
-    if boundaryToggle == 1
-        # Find boundary vertices
-        # Summing each column of B finds boundary edges (for all other edges, cell orientations on either side cancel);
-        # multiplying by Aᵀ gives nonzero values only where a vertex (row) has nonzero values at columns (edges) corresponding to nonzero values in the list of boundary edges.
-        # Note that the abs is needed in case the direction of boundary edges cancel at a vertex
+    
+    # Find boundary vertices
+    # Summing each column of B finds boundary edges (for all other edges, cell orientations on either side cancel);
+    # multiplying by Aᵀ gives nonzero values only where a vertex (row) has nonzero values at columns (edges) corresponding to nonzero values in the list of boundary edges.
+    # Note that the abs is needed in case the direction of boundary edges cancel at a vertex
+    if edgeCellsToggle == 1
         boundaryVertices .= Āᵀ * abs.(sum.(eachcol(B))) .÷ 2
-        #Find a list of edges at system periphery
-        boundaryEdges .= abs.([sum(x) for x in eachcol(B)])
+    else
+        numCellsPerVertex = [count(!iszero, C[:,k]) for k in 1:size(C,2)]
+        boundaryVertices = [num == 3 ? 0 : 1 for num in numCellsPerVertex]
+
     end
+    #Find a list of edges at system periphery
+    boundaryEdges .= abs.([sum(x) for x in eachcol(B)])
+
     # Number of edges around each cell found by summing columns of B̄
       # FastBroadcast doesn't work for this line; not sure why
     #cellEdgeCount .= 6
