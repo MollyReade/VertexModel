@@ -41,8 +41,11 @@ using CircularArrays
     rng                ::MersenneTwister    # Random number sequence
     distLogNormal      ::LogNormal{Float64} # Log normal distribution 
     energyModel        ::String             # Choice of energy function (eg log, quadratic)
-    vertexWeighting    ::Bool               # Flag controlling whether vertices experience drag proportional to their surrounding area 
+    dissipationToggle  ::Bool               # Flag controlling whether vertices experience drag proportional to their surrounding area 
+    edgeDissToggle     ::Bool               # Flag controlling whether edges contribute to vertex drag
+    vertexDissToggle   ::Bool               # Flag controlling whether vertices contribute to vertex drag
     folderName         ::String             # Name of directory in which simulation results are stored
+    currentTime        ::Float64            # Current simulation time
 end
 
 @kwdef mutable struct MatricesContainer

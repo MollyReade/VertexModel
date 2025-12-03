@@ -33,6 +33,7 @@ function visualise(R, t, fig, ax, mov, params, matrices, plotCells, scatterEdges
         cellVertexOrders,
         cellEdgeOrders,
         cellPositions,
+        cellPressures,
         edgeMidpoints,
         F,
         FEdges,
@@ -45,7 +46,7 @@ function visualise(R, t, fig, ax, mov, params, matrices, plotCells, scatterEdges
 
     empty!(ax)
 
-    ax.title = "t = $(@sprintf("%.3f", t)), Pᵢ = $(@sprintf("%.3f", mean(Pᵢ)))"
+    ax.title = "t = $(@sprintf("%.3f", t)), Pᵢ = $(@sprintf("%.3f", mean(cellPressures)))"
 
     # Plot cells
     if plotCells == 1

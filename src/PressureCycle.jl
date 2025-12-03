@@ -20,26 +20,27 @@ using Printf
 
 
 
-function pressureCycle(; nSamples=9, nR=5)
+function pressureCycle(; nSamples=9, nR=5, initialSystem = "new", boundaryToggle = 0,
+        edgeCellsToggle = 1,)
     #Set up plot for movie of all runs
     fig, ax, mov = PlotSetup.plotSetup()
 
     # Create sinusoidal pressure cycle
-    points = LinRange(0,2*π,nSamples)
+    points = LinRange(0,12*π,6*nSamples)
     pressures = 0.5*sin.(points) .+ 0.8
 
     edgeLengths_all = Float64[]
     cellAreas_all = Float64[]
 
     # Run first simulation from new initial conditions
-    integ, _,_,_ = vertexModel(initialSystem = "new",
+    integ, _,_,_ = vertexModel(initialSystem = initialSystem,
         nRows = nR,
-        realCycleTime = 26400.0,
+        realCycleTime = 86400.0,
         l₀ = 0.15,
         A₀ = 1.0,
         Pᵢ = pressures[1],
-        boundaryToggle = 0,
-        edgeCellsToggle = 1,
+        boundaryToggle = boundaryToggle,
+        edgeCellsToggle = edgeCellsToggle,
         outputToggle = 1,
         outputTotal = 20,
         frameDataToggle = 1,
@@ -63,7 +64,7 @@ function pressureCycle(; nSamples=9, nR=5)
     lastfile = "data\\"* folderName * "\\frameData\\systemData$(@sprintf("%03d", outputTotal)).jld2"
 
 
-    for i in 2:nSamples
+    for i in 2:6*nSamples
         # Run simulation from last saved file
         integ, _,_,_ = vertexModel(initialSystem = lastfile,
             nRows = nR,
@@ -71,8 +72,8 @@ function pressureCycle(; nSamples=9, nR=5)
             l₀ = 0.15,
             A₀ = 1.0,
             Pᵢ = pressures[i],
-            boundaryToggle = 0,
-            edgeCellsToggle = 1,
+            boundaryToggle = boundaryToggle,
+            edgeCellsToggle = edgeCellsToggle,
             outputToggle = 1,
             outputTotal = 5,
             frameDataToggle = 1,

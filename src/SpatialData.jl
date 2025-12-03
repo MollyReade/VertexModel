@@ -54,7 +54,8 @@ function spatialData!(R,params,matrices)
         L₀,
         A₀,
         energyModel,
-        l₀ = params
+        l₀,
+        currentTime = params
 
     cellPositions  .= C*R./cellEdgeCount
     
@@ -112,7 +113,7 @@ function spatialData!(R,params,matrices)
         # Calculate cell boundary tensions
         @.. thread = false edgeTensions .=  (edgeLengths .- 1)   
         # Calculate cell internal pressures
-        @.. thread = false cellPressures .= -cellPᵢs
+        @.. thread = false cellPressures .= cellPᵢs
     elseif energyModel == "ventilation_rational"
         # Ventilation energy model with rational tension law
         #Aα^n + Bα^-m + C
@@ -120,7 +121,15 @@ function spatialData!(R,params,matrices)
         # Calculate cell boundary tensions
         @.. thread = false edgeTensions .=  (edgeLengths.^2 .- edgeLengths.^(-3)) ./ 6  
         # Calculate cell internal pressures
-        @.. thread = false cellPressures .= -cellPᵢs
+        @.. thread = false cellPressures .= cellPᵢs
+    elseif energyModel == "ventilation_rational_cycle"
+        # Ventilation energy model with rational tension law and cyclic pressure variation
+        #Aα^n + Bα^-m + C
+        #A = 1/n(n+m), B = 1/m(n+m), C = -1/mn
+        # Calculate cell boundary tensions
+        @.. thread = false edgeTensions .=  (edgeLengths.^2 .- edgeLengths.^(-3)) ./ 6  
+        # Calculate cell internal pressures
+        @.. thread = false cellPressures .= 0.5*sin(1.25*currentTime)+0.6
     else
         # Quadratic energy model
         # Calculate cell boundary tensions

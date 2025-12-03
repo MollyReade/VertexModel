@@ -33,23 +33,23 @@ using DifferentialEquations
 @from "SenseCheck.jl" using SenseCheck
 
 function vertexModel(;
-    initialSystem = "one",
-    nRows = 3,
+    initialSystem = "new",
+    nRows = 11,
     nCycles = 1,
-    realCycleTime = 86400.0,
+    realCycleTime = 864.0,
     realTimetMax = nCycles*realCycleTime,
     γ = 0.2,
     L₀ = 0.75,
     l₀ = 0.15,
     A₀ = 1.0,
-    Pᵢ = 1.1,
-    viscousTimeScale = 1000.0,
+    Pᵢ = 0.8,
+    viscousTimeScale = 1.0,
     pressureExternal = 0.0,
     peripheralTension = 0.0,
     t1Threshold = 0.00,
     divisionToggle = 0,
-    boundaryToggle = 0,
-    edgeCellsToggle = 0,
+    boundaryToggle = 1,
+    edgeCellsToggle = 1,
     solver = Tsit5(),
     nBlasThreads = 1,
     subFolder = "",
@@ -68,8 +68,10 @@ function vertexModel(;
     randomSeed = 0,
     abstol = 1e-7, 
     reltol = 1e-4,
-    energyModel = "ventilation_rational",
-    vertexWeighting = 0,
+    energyModel = "ventilation_rational_cycle",
+    dissipationToggle = 0,
+    edgeDissToggle = 0,
+    vertexDissToggle = 0,
     R_in = spzeros(2),
     A_in = spzeros(2),
     B_in = spzeros(2),
@@ -100,7 +102,9 @@ function vertexModel(;
         randomSeed = randomSeed,
         nRows = nRows,
         energyModel = energyModel,
-        vertexWeighting = vertexWeighting,
+        dissipationToggle = dissipationToggle,
+        edgeDissToggle = edgeDissToggle,
+        vertexDissToggle = vertexDissToggle,
         R_in = R_in,
         A_in = A_in,
         B_in = B_in,
@@ -163,6 +167,7 @@ function vertexModel(;
         step!(integrator)
 
         # Update spatial data (edge lengths, cell areas, etc.) following iteration of the integrator
+        params.currentTime = integrator.t
         spatialData!(R, params, matrices)
 
         # Check system for T1 transitions 

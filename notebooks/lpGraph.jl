@@ -13,12 +13,12 @@ edge_Lengths = Float64[]
 for P in pressures
     integ,_,_,_ = vertexModel(initialSystem = "one",
         nRows = 3,
-        realCycleTime = 2*86400.0,
+        realCycleTime = 2*8640.0,
         l₀ = 0.15,
         A₀ = 1.0,
         Pᵢ = P,
         boundaryToggle = 0,
-        edgeCellsToggle = 0,
+        edgeCellsToggle = 1,
         outputToggle = 0,
         frameDataToggle = 0,
         frameImageToggle = 0,
@@ -85,3 +85,14 @@ scatter!(ax, unstable_P, unstable_L; color = :red, label = "Unstable")
 
 axislegend(ax; position = :rt)
 fig
+
+fig2 = Figure()
+ax2 = Axis(fig2[1, 1];
+    xlabel = "Cell Pressure Pᵢ",
+    ylabel = "Mean Edge Length l",
+    title = "Mean Edge Length vs Cell Pressure"
+)
+
+lines!(ax2, stable_P, stable_L; color = :blue)
+
+fig2
