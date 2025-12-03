@@ -32,3 +32,8 @@ data/*
 *.png
 
 old/
+cellAreas_all.jld2
+cellAreas_allDrag.jld2
+edgeLengths_all.jld2
+edgeLengths_allDrag.jld2
+pressures.jld2
