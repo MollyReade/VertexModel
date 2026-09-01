@@ -14,6 +14,7 @@ using SparseArrays
 using .Threads
 using FromFile 
 using DrWatson
+using FastBroadcast
 
 # Local modules
 @from "SpatialData.jl" using SpatialData
@@ -25,6 +26,8 @@ function model!(du, u, p, t)
         B,
         Ā,
         B̄,
+        areaJacobian,
+        cellαᵢs,
         cellTensions,
         cellPressures,
         edgeLengths,
@@ -36,16 +39,20 @@ function model!(du, u, p, t)
         ϵ,
         boundaryVertices,
         boundaryEdges,
+        edgeCellNormals,
+        normEdges,
         vertexAreas = matrices
     @unpack nVerts,
         nCells,
         nEdges,
-        pressureExternal,
+        Pₘ,
+        κ,
+        P₀,
+        Λ,
+        Amp,
+        ipModel,
         boundaryToggle,
         peripheralTension,
-        dissipationToggle,
-        edgeDissToggle,
-        vertexDissToggle,
         energyModel = params
 
     # Reinterpret state vector as a vector of SVectors 
@@ -62,45 +69,43 @@ function model!(du, u, p, t)
 
     peripheryLength = sum(boundaryEdges .* edgeLengths)
 
-    
-
-    if startswith(energyModel, "ventilation")
-        for k = 1:nVerts
-            for j in nzrange(A, k)
-                for i in nzrange(B, rowvals(A)[j])
-                    # Force components from cell pressure perpendicular to edge tangents 
-                    F[k, rowvals(B)[i]] -= 0.5 * cellPressures[rowvals(B)[i]] * B[rowvals(B)[i], rowvals(A)[j]] * Ā[rowvals(A)[j], k] .* (ϵ * edgeTangents[rowvals(A)[j]])
-                    externalF[k] += boundaryVertices[k] * (0.5 * pressureExternal * B[rowvals(B)[i], rowvals(A)[j]] * Ā[rowvals(A)[j], k] .* (ϵ * edgeTangents[rowvals(A)[j]])) # 0 unless boundaryVertices != 0
-                end
-                #Force component from edge tension on vertex k
-                FEdges[k] -= edgeTensions[rowvals(A)[j]] * A[rowvals(A)[j], k] .* edgeTangents[rowvals(A)[j]] ./ edgeLengths[rowvals(A)[j]]
-                # Force on vertex from peripheral tension
-                externalF[k] -= boundaryEdges[rowvals(A)[j]] * peripheralTension * (peripheryLength - sqrt(π * nCells)) * A[rowvals(A)[j], k] .* edgeTangents[rowvals(A)[j]] ./ edgeLengths[rowvals(A)[j]]
-            
-            end
-            dR[k] = (sum(@view F[k, :]) .+ externalF[k] .+ FEdges[k])
-        end
+    if ipModel == "sinusoidal"
+        Pᵢₚ = P₀ + Amp * sin(t)
     else
-        for k = 1:nVerts
-            for j in nzrange(A, k)
-                for i in nzrange(B, rowvals(A)[j])
-                    # Force components from cell pressure perpendicular to edge tangents 
-                    F[k, rowvals(B)[i]] -= 0.5 * cellPressures[rowvals(B)[i]] * B[rowvals(B)[i], rowvals(A)[j]] * Ā[rowvals(A)[j], k] .* (ϵ * edgeTangents[rowvals(A)[j]])
-                    # Force components from cell membrane tension parallel to edge tangents 
-                    F[k, rowvals(B)[i]] -= cellTensions[rowvals(B)[i]] * B̄[rowvals(B)[i], rowvals(A)[j]] * A[rowvals(A)[j], k] .* edgeTangents[rowvals(A)[j]] ./ edgeLengths[rowvals(A)[j]]
-                    #F[k, rowvals(B)[i]] -= cellTensions[rowvals(B)[i]] * A[rowvals(A)[j], k] .* edgeTangents[rowvals(A)[j]] ./ edgeLengths[rowvals(A)[j]]
-                    # Force on vertex from external pressure 
-                    externalF[k] += boundaryVertices[k] * (0.5 * pressureExternal * B[rowvals(B)[i], rowvals(A)[j]] * Ā[rowvals(A)[j], k] .* (ϵ * edgeTangents[rowvals(A)[j]])) # 0 unless boundaryVertices != 0
-                    #externalF[k] -= peripheralTension
-                end
-                # Force on vertex from peripheral tension
-                externalF[k] -= boundaryEdges[rowvals(A)[j]] * peripheralTension * (peripheryLength - sqrt(π * nCells)) * A[rowvals(A)[j], k] .* edgeTangents[rowvals(A)[j]] ./ edgeLengths[rowvals(A)[j]]
-                #externalF[k] -= boundaryEdges[rowvals(A)[j]] * peripheralTension * A[rowvals(A)[j], k] .* edgeTangents[rowvals(A)[j]] ./ edgeLengths[rowvals(A)[j]]
+        Pᵢₚ = P₀
+    end
+
+    for k = 1:nVerts
+        for j = 1:nEdges
+            dR[k] += - A[j, k] * edgeTensions[j] * (normEdges[j])
+            for i = 1:nCells
+                dR[k] += (Pᵢₚ - Pₘ) * 0.5 * edgeCellNormals[i,j] * abs(A[j,k])
             end
             
-            dR[k] = (sum(@view F[k, :]) .+ externalF[k])
+        end
+        for j in nzrange(A,k)
+            externalF[k] -= boundaryEdges[rowvals(A)[j]] * peripheralTension * (peripheryLength - sqrt(π * nCells)) * A[rowvals(A)[j],k] .* edgeTangents[rowvals(A)[j]] ./ edgeLengths[rowvals(A)[j]]
+        end
+        dR[k] += externalF[k]
+    end
+    for i = 1:nCells
+        for k = 1:nVerts
+            dR[k] += areaJacobian[i,k] * Pₘ
         end
     end
+    #preMult = κ * Diagonal(vertexAreas) + areaJacobian' * Λ * Diagonal(cellαᵢs) * areaJacobian
+    preMult = zeros(Float64, nVerts, nVerts)
+    for k = 1:nVerts
+        preMult[k,k] += κ * vertexAreas[k] 
+        for l = 1:nVerts
+            for i = 1:nCells
+                preMult[k,l] += Λ * cellαᵢs[i] * (areaJacobian[i,k]' * areaJacobian[i,l])
+            end
+        end
+    end
+    
+    dR = inv(preMult) * dR
+    cellPressures .= Pₘ * ones(nCells) - Λ * Diagonal(cellαᵢs) * [sum(dot(areaJacobian[i,k], dR[k]) for k in axes(areaJacobian, 2)) for i in axes(areaJacobian, 1)]
 
     if boundaryToggle == 1
         for k = 1:nVerts
@@ -110,16 +115,7 @@ function model!(du, u, p, t)
         end
     end
 
-    if startswith(energyModel,"ventilation_rational") && dissipationToggle == 1
-        # Rational vertex weighting
-        R = calculateDrag( params, matrices)
-        Fvec = reinterpret(Float64, dR)
-        v = R \ Fvec
-        dR .= reinterpret(SVector{2,Float64}, v)
-    else
-        dissipationToggle == 1 ? dR ./= vertexAreas : nothing 
-    end
-
+    
     # dR accesses the same underlying data as du, so by altering dR we have already updated du appropriately
     return du
 end

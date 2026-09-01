@@ -2,7 +2,7 @@
 
 julia_version = "1.12.1"
 manifest_format = "2.0"
-project_hash = "49a54889a4f3ce35f861642b27345f0f3cddecbe"
+project_hash = "b35bbb7bc74d72c755343e8f9460125bd5e116ad"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "27cecae79e5cc9935255f90c53bb831cc3c870d7"
@@ -1286,6 +1286,11 @@ weakdeps = ["Dates", "Test"]
     [deps.InverseFunctions.extensions]
     InverseFunctionsDatesExt = "Dates"
     InverseFunctionsTestExt = "Test"
+
+[[deps.InvertedIndices]]
+git-tree-sha1 = "6da3c4316095de0f5ee2ebd875df8721e7e0bdbe"
+uuid = "41ab1584-1d38-5bbf-9106-f11c6c58b48f"
+version = "1.3.1"
 
 [[deps.IrrationalConstants]]
 git-tree-sha1 = "b2d91fe939cae05960e760110b328288867b5758"
@@ -3063,7 +3068,7 @@ uuid = "3d5dd08c-fd9d-11e8-17fa-ed2836048c2f"
 version = "0.21.72"
 
 [[deps.VertexModel]]
-deps = ["CairoMakie", "CircularArrays", "ColorSchemes", "Colors", "Dates", "DelaunayTriangulation", "DifferentialEquations", "Distributions", "DrWatson", "FFMPEG", "FFMPEG_jll", "FastBroadcast", "FromFile", "GeometryBasics", "Glob", "Images", "JLD2", "LaTeXStrings", "LibGit2", "LinearAlgebra", "Makie", "Observables", "OrdinaryDiffEq", "OrdinaryDiffEqSDIRK", "PrecompileTools", "Printf", "Random", "Revise", "SparseArrays", "StaticArrays", "Statistics", "StatsBase", "UnPack"]
+deps = ["CairoMakie", "CircularArrays", "ColorSchemes", "Colors", "Dates", "DelaunayTriangulation", "DifferentialEquations", "Distributions", "DrWatson", "FFMPEG", "FFMPEG_jll", "FastBroadcast", "FromFile", "GeometryBasics", "Glob", "Images", "InvertedIndices", "JLD2", "LaTeXStrings", "LibGit2", "LinearAlgebra", "Makie", "Observables", "OrdinaryDiffEq", "OrdinaryDiffEqSDIRK", "PNGFiles", "PrecompileTools", "Printf", "Random", "Revise", "SparseArrays", "StaticArrays", "Statistics", "StatsBase", "UnPack"]
 path = "."
 uuid = "514bac63-329a-430c-b146-740bf51d96fc"
 version = "0.1.0"

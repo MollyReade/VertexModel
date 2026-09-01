@@ -17,6 +17,8 @@ using FromFile
 using DelaunayTriangulation
 using FromFile
 using Random
+using InvertedIndices
+using NonlinearSolve
 
 @from "SenseCheck.jl" using SenseCheck
 
@@ -26,6 +28,10 @@ function initialSystemLayout(;
         initialEdgeLength = 5.0*0.75/6, # Need to find a better value for this than 5*L₀/6
         edgeCellsToggle = 0
     )
+
+    equilibriumEdgeLength = initialEdgeLength
+    horizontalCellSpacing = 2.0*equilibriumEdgeLength*sin(π/3.0)
+    verticalCellSpacing = 1.5*equilibriumEdgeLength
 
     # nRows = 9 # Must be an odd number
     cellPoints = [SVector(x, 0.0) for x = 1:nRows]
@@ -55,7 +61,7 @@ function initialSystemLayout(;
         push!(usableVertices, a...)
     end
     sort!(unique!(usableVertices))
-    outerVertices = setdiff(collect(1:num_polygon_vertices(tessellation_constrained)), usableVertices)
+    # outerVertices = setdiff(collect(1:num_polygon_vertices(tessellation_constrained)), usableVertices)
     
     #println(usableVertices)
     
@@ -121,18 +127,19 @@ function initialSystemLayout(;
         A[edges[2], otherVertexOnEdge1] = A[edges[2], i]
         A[edges[1], otherVertexOnEdge1] = 0
     end
-    A = A[setdiff(1:size(A, 1), edgesToRemove), setdiff(1:size(A, 2), verticesToRemove)]
-    B = B[:, setdiff(1:size(B, 2), edgesToRemove)]
-    Rtmp = Rtmp[setdiff(1:size(Rtmp, 1), verticesToRemove)]
+    A = A[Not(edgesToRemove), Not(verticesToRemove)]
+    B = B[:, Not(edgesToRemove)]
+    Rtmp = Rtmp[Not(verticesToRemove)]
 
     
 
-    senseCheck(A, B; marker="Removing peripheral vertices")
+    senseCheck(A, B; marker="Error after removing peripheral vertices")
 
 
     R = SVector{2, Float64}[]
     for r in Rtmp 
-        push!(R, SVector(initialEdgeLength*(r[1] - (nRows-1)/2 - 1.0 ), initialEdgeLength*r[2]))
+        push!(R, SVector(horizontalCellSpacing*(r[1] - (nRows-1)/2 - 1.0 ), horizontalCellSpacing*r[2]))
+        #push!(R, SVector(initialEdgeLength*(r[1] - (nRows-1)/2 - 1.0 ), initialEdgeLength*r[2]))
     end
 
     if edgeCellsToggle == 0

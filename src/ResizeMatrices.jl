@@ -53,7 +53,6 @@ function resizeMatrices!(params, matrices, nVertsNew, nEdgesNew, nCellsNew)
     resize!(matrices.vertexAreas, nVertsNew)
     resize!(matrices.totalF,nVertsNew)
     resize!(matrices.externalF,nVertsNew)
-    resize!(matrices.cellPᵢs, nCellsNew)
     resize!(matrices.edgel₀s, nEdgesNew)
 
     # Update stored number of cells, edges, and vertices

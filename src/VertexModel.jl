@@ -29,25 +29,28 @@ using DifferentialEquations
 @from "Model.jl" using Model
 @from "T1Transitions.jl" using T1Transitions
 @from "TopologyChange.jl" using TopologyChange
-@from "Division.jl" using Division
 @from "SenseCheck.jl" using SenseCheck
 
 function vertexModel(;
     initialSystem = "new",
-    nRows = 11,
+    nRows = 7,
     nCycles = 1,
-    realCycleTime = 864.0,
+    realCycleTime = 16.640,
     realTimetMax = nCycles*realCycleTime,
+    Λ = 0.1,
+    κ = 0.05,
     γ = 0.2,
     L₀ = 0.75,
-    l₀ = 0.15,
+    l₀ = 0.45,
     A₀ = 1.0,
     Pᵢ = 0.8,
+    Pₘ = 0.0,
+    P₀ = -0.0,
+    Amp = 0.4,
+    ipModel = "sinusoidal",
     viscousTimeScale = 1.0,
-    pressureExternal = 0.0,
-    peripheralTension = 0.0,
+    peripheralTension = 1.0,
     t1Threshold = 0.00,
-    divisionToggle = 0,
     boundaryToggle = 1,
     edgeCellsToggle = 1,
     solver = Tsit5(),
@@ -60,18 +63,17 @@ function vertexModel(;
     printToggle = 1,
     videoToggle = 1,
     plotCells = 1,
-    scatterEdges = 0,
-    scatterVertices = 0,
-    scatterCells = 0,
-    plotForces = 0,
+    scatterEdges = 1,
+    scatterVertices = 1,
+    scatterCells = 1,
+    plotForces = 1,
     plotEdgeMidpointLinks = 0,
     randomSeed = 0,
     abstol = 1e-7, 
     reltol = 1e-4,
-    energyModel = "ventilation_rational_cycle",
+    energyModel = "ventilation_rational",
+    resistanceModel = "Linear",
     dissipationToggle = 0,
-    edgeDissToggle = 0,
-    vertexDissToggle = 0,
     R_in = spzeros(2),
     A_in = spzeros(2),
     B_in = spzeros(2),
@@ -87,11 +89,16 @@ function vertexModel(;
     u0, params, matrices = initialise(initialSystem = initialSystem,
         realTimetMax = realTimetMax,
         γ = γ,
+        Λ = Λ,
+        κ = κ,
         L₀ = L₀,
         A₀ = A₀,
         l₀ = l₀,
         Pᵢ = Pᵢ,
-        pressureExternal = pressureExternal,
+        Pₘ = Pₘ,
+        P₀ = P₀,
+        Amp = Amp,
+        ipModel = ipModel,
         viscousTimeScale = viscousTimeScale,
         boundaryToggle = boundaryToggle,
         edgeCellsToggle = edgeCellsToggle,
@@ -102,9 +109,7 @@ function vertexModel(;
         randomSeed = randomSeed,
         nRows = nRows,
         energyModel = energyModel,
-        dissipationToggle = dissipationToggle,
-        edgeDissToggle = edgeDissToggle,
-        vertexDissToggle = vertexDissToggle,
+        resistanceModel = resistanceModel,
         R_in = R_in,
         A_in = A_in,
         B_in = B_in,
@@ -177,16 +182,7 @@ function vertexModel(;
             topologyChange!(matrices, params) # Update system matrices after T1 transition
             spatialData!(R, params, matrices) # Update spatial data after T1 transition  
         end
-        if divisionToggle==1
-            if division!(integrator, params, matrices) > 0
-                u_modified!(integrator, true)
-                # senseCheck(matrices.A, matrices.B; marker="division") # Check for nonzero values in B*A indicating error in incidence matrices          
-                topologyChange!(matrices, params) # Update system matrices after division 
-                spatialData!(R, params, matrices) # Update spatial data after division 
-            end
-        end
         # Update cell ages with (variable) timestep used in integration step
-        matrices.cellTimeToDivide .-= integrator.dt
         matrices.timeSinceT1 .+= integrator.dt
     end
 

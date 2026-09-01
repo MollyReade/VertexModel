@@ -18,10 +18,6 @@ function createRunDirectory(params,subFolder)
 
     @unpack initialSystem,
         realTimetMax,
-        γ,
-        λ,
-        A₀,
-        pressureExternal,
         Pᵢ,
         viscousTimeScale,
         outputTotal,
@@ -30,7 +26,6 @@ function createRunDirectory(params,subFolder)
         nVerts,
         nCells,
         nEdges,
-        L₀,
         l₀,
         outputInterval,
         tMax,

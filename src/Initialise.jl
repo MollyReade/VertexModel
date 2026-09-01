@@ -28,12 +28,17 @@ function initialise(; initialSystem = "new",
         nCycles = 1,
         realCycleTime = 86400.0,
         realTimetMax = nCycles*realCycleTime,
+        κ = 0.5,
+        Λ = 0.5,
         γ = 0.2,
         L₀ = 0.75,
         l₀ = 0.15,
         A₀ = 1.0,
         Pᵢ = 0.2,
-        pressureExternal = 0.0,
+        Pₘ = 0.0,
+        P₀ = 0.0,
+        Amp = 3,
+        ipModel = "sinusoidal",
         viscousTimeScale = 1000.0,
         boundaryToggle = 0,
         edgeCellsToggle = 0,
@@ -43,9 +48,7 @@ function initialise(; initialSystem = "new",
         randomSeed = 0,
         nRows = 9,
         energyModel = "ventilation",
-        dissipationToggle = 1,
-        edgeDissToggle = 1,
-        vertexDissToggle = 1,
+        resistanceModel = "Linear",
         R_in= spzeros(2),
         A_in= spzeros(2),
         B_in= spzeros(2),
@@ -72,20 +75,21 @@ function initialise(; initialSystem = "new",
     elseif initialSystem == "new"
         isodd(nRows) && (nRows>1)  ? nothing : throw("nRows must be an odd number greater than 1.")
         A, B, R = initialSystemLayout(nRows=nRows,boundaryToggle=boundaryToggle, initialEdgeLength=initialEdgeLength=5*L₀/6, edgeCellsToggle=edgeCellsToggle)
-        cellTimeToDivide = rand(rng,Uniform(0.0, nonDimCycleTime), size(B, 1))  # Random initial cell ages
     elseif initialSystem == "argument"
         R = R_in
         A = A_in
         B = B_in
-        cellTimeToDivide = rand(rng,Uniform(0.0, nonDimCycleTime), size(B, 1))  # Random initial cell ages
     else
         # Import system matrices from final state of previous run
         importedData = load("$initialSystem"; 
             typemap=Dict("VertexModel.../VertexModelContainers.jl.VertexModelContainers.ParametersContainer"=>ParametersContainer, 
             "VertexModel.../VertexModelContainers.jl.VertexModelContainers.MatricesContainer"=>MatricesContainer))
         @unpack A,B = importedData["matrices"]
-        cellTimeToDivide = rand(rng,Uniform(0.0,nonDimCycleTime),size(B,1))
         R = importedData["R"]
+    end
+
+    if resistanceModel == "Linear"
+        cellαᵢs = ones(size(B, 1))
     end
 
     nCells = size(B, 1)
@@ -103,6 +107,7 @@ function initialise(; initialSystem = "new",
         B̄                 = spzeros(Int64, nCells, nEdges),
         B̄ᵀ                = spzeros(Int64, nEdges, nCells),
         C                 = spzeros(Int64, nCells, nVerts),
+        areaJacobian      = spzeros(SVector{2,Float64}, nCells, nVerts),
         cellEdgeCount     = zeros(Int64, nCells),
         cellVertexOrders  = fill(CircularVector(Int64[]), nCells),
         cellEdgeOrders    = fill(CircularVector(Int64[]), nCells),
@@ -113,13 +118,13 @@ function initialise(; initialSystem = "new",
         cellOrientedAreas = fill(SMatrix{2,2,Float64}(zeros(2,2)), nCells),
         cellAreas         = zeros(nCells),
         cellA₀s           = fill(A₀, nCells),
+        cellαᵢs           = cellαᵢs,
         cellL₀s           = fill(L₀, nCells),
         cellTensions      = zeros(nCells),
         cellPressures     = zeros(nCells),
-        cellTimeToDivide  = cellTimeToDivide,
-        cellPᵢs          = fill(Pᵢ, nCells),
         μ                 = ones(nCells),
         Γ                 = γ.*ones(nCells), 
+        edgeCellNormals     = spzeros(SVector{2,Float64}, nCells, nEdges),
         edgeLengths       = zeros(nEdges),
         edgeTangents      = fill(SVector{2,Float64}(zeros(2)), nEdges),
         edgeTensions      = zeros(nEdges),
@@ -127,6 +132,7 @@ function initialise(; initialSystem = "new",
         edgel₀s          = fill(l₀, nEdges),
         edgeMidpointLinks = spzeros(SVector{2,Float64}, nCells, nVerts),
         timeSinceT1       = zeros(nEdges),
+        normEdges         = fill(SVector{2,Float64}(zeros(2)), nEdges),
         vertexAreas       = ones(nVerts),
         F                 = spzeros(SVector{2,Float64}, nVerts, nCells),
         FEdges            = spzeros(SVector{2,Float64}, nVerts),
@@ -147,11 +153,16 @@ function initialise(; initialSystem = "new",
         nVerts            = nVerts,
         γ                 = γ,
         λ                 = λ,
+        κ                = κ,
+        Λ                = Λ,
         L₀                = L₀,
         A₀                = A₀,
         l₀                = l₀,
         Pᵢ                = Pᵢ,
-        pressureExternal  = pressureExternal,
+        Pₘ               = Pₘ,
+        P₀                = P₀,
+        Amp                 = Amp,
+        ipModel           = ipModel,
         boundaryToggle    = boundaryToggle,
         edgeCellsToggle  = edgeCellsToggle,
         outputTotal       = outputTotal,
@@ -169,9 +180,7 @@ function initialise(; initialSystem = "new",
         rng               = rng,
         distLogNormal     = LogNormal(0.0, 0.2),
         energyModel       = energyModel,
-        dissipationToggle   = dissipationToggle,
-        edgeDissToggle = edgeDissToggle,
-        vertexDissToggle = vertexDissToggle,
+        resistanceModel   = resistanceModel,
         folderName        = "",
         currentTime        = 0.0,
     )

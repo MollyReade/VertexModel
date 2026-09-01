@@ -26,6 +26,8 @@ function spatialData!(R,params,matrices)
         B̄,
         Bᵀ,
         C,
+        ϵ,
+        areaJacobian,
         cellEdgeCount,
         cellVertexOrders,
         cellEdgeOrders,
@@ -38,21 +40,17 @@ function spatialData!(R,params,matrices)
         cellA₀s,
         cellTensions,
         cellPressures,
+        edgeCellNormals,
         edgeLengths,
         edgeTangents,
         edgeTensions,
         edgeMidpoints,
         edgeMidpointLinks,
-        vertexAreas,
-        μ,
-        Γ,
-        cellPᵢs = matrices
+        normEdges,
+        vertexAreas = matrices
     @unpack nCells,
         nEdges,
         nVerts,
-        γ,
-        L₀,
-        A₀,
         energyModel,
         l₀,
         currentTime = params
@@ -62,6 +60,21 @@ function spatialData!(R,params,matrices)
     edgeTangents   .= A*R
     
     @.. thread=false edgeLengths .= norm.(edgeTangents)
+
+    normEdges = edgeTangents ./ edgeLengths
+    for i = 1:nCells
+        for j = 1:nEdges
+            edgeCellNormals[i, j] = - ϵ * B[i,j] * edgeTangents[j]
+        end
+    end
+
+    for  i = 1:nCells
+        for k = 1:nVerts
+            for j = 1:nEdges
+                areaJacobian[i, k] += 0.5 * edgeCellNormals[i,j] * abs(A[j,k])
+            end
+        end
+    end
 
     edgeMidpoints  .= 0.5.*Ā*R
     
@@ -102,40 +115,23 @@ function spatialData!(R,params,matrices)
     end
 
     # Calculate cell pressures and tensions according to energy model choice 
-    if energyModel == "log"
-        # Model per Cowley et al. 2024 Section 2a
-        # Calculate cell boundary tensions
-        @.. thread = false cellTensions .= μ .* Γ .* cellL₀s .* log.(cellPerimeters ./ cellL₀s)
-        # Calculate cell internal pressures
-        @.. thread = false cellPressures .= μ .* cellA₀s .* log.(cellAreas ./ cellA₀s)
-    elseif energyModel == "ventilation"
+    if energyModel == "ventilation"
         # Ventilation energy model
         # Calculate cell boundary tensions
         @.. thread = false edgeTensions .=  (edgeLengths .- 1)   
         # Calculate cell internal pressures
-        @.. thread = false cellPressures .= cellPᵢs
+        #@.. thread = false cellPressures .= 0.0
     elseif energyModel == "ventilation_rational"
+        #TODO fix this
         # Ventilation energy model with rational tension law
         #Aα^n + Bα^-m + C
         #A = 1/n(n+m), B = 1/m(n+m), C = -1/mn
         # Calculate cell boundary tensions
-        @.. thread = false edgeTensions .=  (edgeLengths.^2 .- edgeLengths.^(-3)) ./ 6  
+        @.. thread = false edgeTensions .=  ((edgeLengths/l₀).^2 .- (edgeLengths/l₀).^(-3)) ./ 5  
         # Calculate cell internal pressures
-        @.. thread = false cellPressures .= cellPᵢs
-    elseif energyModel == "ventilation_rational_cycle"
-        # Ventilation energy model with rational tension law and cyclic pressure variation
-        #Aα^n + Bα^-m + C
-        #A = 1/n(n+m), B = 1/m(n+m), C = -1/mn
-        # Calculate cell boundary tensions
-        @.. thread = false edgeTensions .=  (edgeLengths.^2 .- edgeLengths.^(-3)) ./ 6  
-        # Calculate cell internal pressures
-        @.. thread = false cellPressures .= 0.5*sin(1.25*currentTime)+0.6
+        #@.. thread = false cellPressures .= cellPᵢs
     else
-        # Quadratic energy model
-        # Calculate cell boundary tensions
-        @.. thread = false cellTensions .= μ .* Γ .*(cellPerimeters - cellL₀s)
-        # Calculate cell internal pressures
-        @.. thread = false cellPressures .= μ .*(cellAreas - cellA₀s)
+        #something here
     end
 
     return nothing

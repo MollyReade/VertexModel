@@ -50,34 +50,39 @@ function visualise(R, t, fig, ax, mov, params, matrices, plotCells, scatterEdges
 
     # Plot cells
     if plotCells == 1
+        #TODO Implement cells having different colors based on their pressure values
         cellPolygons = makeCellPolygons(R, params, matrices)
+        minPressure = minimum(cellPressures)
+        maxPressure = maximum(cellPressures)
+        println(cellPressures)
         for i = 1:nCells
-            poly!(ax, cellPolygons[i], color=(getRandomColor(i), 0.5), strokecolor=(:black, 1.0), strokewidth=2)
+            color = pressureToColour(cellPressures[i], minPressure, maxPressure)
+            poly!(ax, cellPolygons[i], color=color, strokecolor=(:black, 1.0), strokewidth=2)
         end
     end
 
     # Scatter vertices
     if scatterVertices == 1
         scatter!(ax, Point{2,Float64}.(R), color=:green)
-        annotations!(ax, string.(collect(1:length(R))), Point{2,Float64}.(R), color=:green)
+        #annotations!(ax, string.(collect(1:length(R))), Point{2,Float64}.(R), color=:green)
     end
 
     # Scatter edge midpoints
     if scatterEdges == 1
         scatter!(ax, Point{2,Float64}.(edgeMidpoints), color=:blue)
-        annotations!(ax, string.(collect(1:length(edgeMidpoints))), Point{2,Float64}.(edgeMidpoints), color=:blue)
+        #annotations!(ax, string.(collect(1:length(edgeMidpoints))), Point{2,Float64}.(edgeMidpoints), color=:blue)
     end
 
     # Scatter cell positions
     if scatterCells == 1
         scatter!(ax, Point{2,Float64}.(cellPositions), color=:red)
-        annotations!(ax, string.(collect(1:length(cellPositions))), Point{2,Float64}.(cellPositions), color=:red)
+        #annotations!(ax, string.(collect(1:length(cellPositions))), Point{2,Float64}.(cellPositions), color=:red)
     end
 
     # Plot resultant forces on vertices (excluding external pressure)
     # NB these forces will be those calculated in the previous integration step and thus will not be exactly up to date for the current vertex positions
     if plotForces == 1
-        arrows!(ax, Point{2,Float64}.(R), Vec2f.(sum(F.+FEdges, dims=2)), color=:green)
+        arrows2d!(ax, Point{2,Float64}.(R), Vec2f.(sum(F.+FEdges, dims=2)), color=:green)
     end
 
     if plotEdgeMidpointLinks == 1
@@ -118,6 +123,18 @@ function add_ruler!(ax, matrices, params; xpos_frac=0.1, ypos_frac=0.01)
     lines!(ax,[xstart, xend], [ypos - 0.01 * xrange, ypos + 0.01 * xrange], color=:red, linewidth=5)
 
     text!(ax, string(round(xrange, sigdigits=3)), position=((xstart+xend)/2, ypos + 0.02 * xrange), color=:red, align = (:center, :bottom), fontsize=20)
+end
+
+function pressureToColour(pressure, minPressure, maxPressure)
+    minPressure = -0.3
+    maxPressure = 0.3
+    range = maxPressure - minPressure
+
+    if !isfinite(range) || abs(range) < 1e-12
+        return get(ColorSchemes.viridis, 0.5)  # neutral middle colour
+    end
+    normPressure = clamp((pressure - minPressure) / (maxPressure - minPressure), 0, 1)
+    return get(ColorSchemes.viridis, normPressure)
 end
 
 export visualise
