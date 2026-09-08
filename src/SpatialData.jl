@@ -41,6 +41,7 @@ function spatialData!(R,params,matrices)
         cellTensions,
         cellPressures,
         edgeCellNormals,
+        avgEdgeCellNormals,
         edgeLengths,
         edgeTangents,
         edgeTensions,
@@ -61,13 +62,25 @@ function spatialData!(R,params,matrices)
     
     @.. thread=false edgeLengths .= norm.(edgeTangents)
 
-    normEdges = edgeTangents ./ edgeLengths
+    normEdges .= edgeTangents ./ edgeLengths
     for i = 1:nCells
         for j = 1:nEdges
             edgeCellNormals[i, j] = - ϵ * B[i,j] * edgeTangents[j]
         end
     end
 
+    fill!(avgEdgeCellNormals, SVector{2,Float64}(zeros(2)))
+    for k = 1:nVerts
+        for i = 1:nCells
+            for j = 1:nEdges
+                avgEdgeCellNormals[k] += abs(A[j,k]) * edgeCellNormals[i,j] * abs(C[i,k])
+            end
+        end
+        avgEdgeCellNormals[k] = avgEdgeCellNormals[k] ./ norm(avgEdgeCellNormals[k])
+    end
+
+
+    fill!(areaJacobian, SVector{2,Float64}(zeros(2)))
     for  i = 1:nCells
         for k = 1:nVerts
             for j = 1:nEdges
@@ -137,6 +150,7 @@ function spatialData!(R,params,matrices)
     return nothing
 
 end
+
 
 export spatialData!
 

@@ -33,26 +33,29 @@ using DifferentialEquations
 
 function vertexModel(;
     initialSystem = "new",
-    nRows = 7,
+    nRows = 5,
     nCycles = 1,
-    realCycleTime = 16.640,
+    realCycleTime = 8.640,
     realTimetMax = nCycles*realCycleTime,
-    Λ = 0.1,
+    Λ = 1,
     κ = 0.05,
     γ = 0.2,
-    L₀ = 0.75,
-    l₀ = 0.45,
+    L₀ = 1,
+    l₀ = 1,
     A₀ = 1.0,
-    Pᵢ = 0.8,
+    Pᵢ = 0.0,
     Pₘ = 0.0,
-    P₀ = -0.0,
-    Amp = 0.4,
+    P₀ = 0.5,
+    ω = π/(2*realCycleTime),
+    Amp = 0.2,
     ipModel = "sinusoidal",
     viscousTimeScale = 1.0,
-    peripheralTension = 1.0,
+    peripheralTension = 0.0,
     t1Threshold = 0.00,
-    boundaryToggle = 1,
-    edgeCellsToggle = 1,
+    boundaryCondition = "force", # "displacement" or "force"
+    boundaryToggle = 0,
+    edgeCellsToggle = 0,
+    solveMethod = "Manual",  #Manual or ODEProblem
     solver = Tsit5(),
     nBlasThreads = 1,
     subFolder = "",
@@ -97,10 +100,12 @@ function vertexModel(;
         Pᵢ = Pᵢ,
         Pₘ = Pₘ,
         P₀ = P₀,
+        ω = ω,
         Amp = Amp,
         ipModel = ipModel,
         viscousTimeScale = viscousTimeScale,
         boundaryToggle = boundaryToggle,
+        boundaryCondition = boundaryCondition,
         edgeCellsToggle = edgeCellsToggle,
         outputTotal = outputTotal,
         t1Threshold = t1Threshold,
@@ -133,66 +138,164 @@ function vertexModel(;
         end
     end
 
-    # Set up ODE integrator 
-    prob = ODEProblem(model!, u0, (0.0, Inf), (params, matrices))
-    alltStops = collect(0.0:params.outputInterval:params.tMax) # Time points that the solver will be forced to land at during integration
-    if energyModel == "log"
-        integrator = init(prob, Tsit5(), tstops=alltStops, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
-    else
-        integrator = init(prob, solver, tstops=alltStops, abstol=abstol, reltol=reltol)
-    end
-    outputCounter = [1]
+    if solveMethod == "Manual"
+        t = 0.0
+        alltStops = collect(0.0:params.outputInterval:params.tMax) # Time points that the solver will be forced to land at during integration
+        outputCounter = [1]
+        u = u0
+        while t < params.tMax
+            dt = params.outputInterval/10000.0
+            R = reinterpret(SVector{2,Float64}, u)
+            if abs((t - alltStops[outputCounter[1]])) < 1e-8
+                # Update progress on command line 
+                printToggle == 1 ? println("$(@sprintf("%.2f", t))/$(@sprintf("%.2f", params.tMax)), $(outputCounter[1])/$outputTotal") : nothing            
+                if frameDataToggle == 1
+                    # Save system data to file 
+                    jldsave(datadir(folderName, "frameData", "systemData$(@sprintf("%03d", outputCounter[1])).jld2"); matrices, params, R)
+                end
+                if frameImageToggle == 1 || videoToggle == 1
+                    # Render visualisation of system and add frame to movie
+                    visualise(R, t, fig, ax, mov, params, matrices, plotCells, scatterEdges, scatterVertices, scatterCells, plotForces, plotEdgeMidpointLinks)
+                end
+                # Save still image of this time step 
+                frameImageToggle == 1 ? save(datadir(folderName, "frameImages", "frameImage$(@sprintf("%03d", outputCounter[1])).png"), fig) : nothing
+                outputCounter[1] += 1
+            end
+            t += dt
+            u = splitStep(u, u0,(params,matrices), t, dt/2)
 
-    # Iterate until integrator time reaches max system time 
-    while integrator.t <= params.tMax && (integrator.sol.retcode == ReturnCode.Default || integrator.sol.retcode == ReturnCode.Success)
+            params.currentTime = t
+            spatialData!(R, params, matrices)
+            # println("\n========== DEBUG ==========")
+
+            # println("edge length       : ", extrema(matrices.edgeLengths))
+            # println("edge length/l₀    : ", extrema(matrices.edgeLengths ./ l₀))
+            # println("edge tension      : ", extrema(matrices.edgeTensions))
+            # println("cell area         : ", extrema(matrices.cellAreas))
+            # println("vertex area D     : ", extrema(matrices.vertexAreas))
+            # println("cell alpha        : ", extrema(matrices.cellαᵢs))
+
+            # println("============================\n")
+        end
+        (outputToggle == 1 && videoToggle == 1 && isnothing(existingMov)) ? save(datadir(folderName, "$(splitpath(folderName)[end]).mp4"), mov) : nothing
+        if returnPlots
+            return u, fig, ax, mov
+        else
+            return u
+        end
+
+    elseif solveMethod == "ODEProblem"
+        # Set up ODE integrator 
+        #prob = ODEProblem(model!, u0, (0.0, Inf), (params, matrices))
+        probT = ODEProblem(modelT!, u0, (0.0, Inf), (params, matrices))
+        probP = ODEProblem(modelP!, u0, (0.0, Inf), (params, matrices))
+        alltStops = collect(0.0:params.outputInterval:params.tMax) # Time points that the solver will be forced to land at during integration
+        dt = params.outputInterval
+        #if energyModel == "log"
+        #    integrator = init(prob, Tsit5(), tstops=alltStops, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
+        #else
+        #    integrator = init(prob, solver, tstops=alltStops, abstol=abstol, reltol=reltol)
+        #end
+        #integrator = LieIntegrator(probT, probP, copy(u0),0.0,dt,nothing, solver)
+        integratorT = init(probT, solver, tstops=alltStops, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
+        integratorP = init(probP, solver, tstops=alltStops, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
+        outputCounter = [1]
+
+        u = copy(u0)
+        t=0.0
+
+        while t <= params.tMax
+            dtStep = min(params.outputInterval, params.tMax - t)
+
+            probT = remake(probT; u0=u, tspan=(t, t+dtStep))
+            solT = solve(probT, solver, tstops=alltStops, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
+            u = solT.u[end]
+
+            R = reinterpret(SVector{2,Float64}, u)
+            params.currentTime = t+dtStep
+            spatialData!(R, params, matrices)
+
+            probP = remake(probP; u0=u, tspan=(t, t+dtStep))
+            solP = solve(probP, solver, tstops=alltStops, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
+            u = solP.u[end]
+            
         
-        # Reinterpret state vector as a vector of SVectors 
-        R = reinterpret(SVector{2,Float64}, integrator.u)
-        # Note that reinterpreting accesses the same underlying data, so changes to R will update integrator.u and vice versa 
-
-        # Output data to file 
-        if integrator.t == alltStops[outputCounter[1]]
-            # Update progress on command line 
-            printToggle == 1 ? println("$(@sprintf("%.2f", integrator.t))/$(@sprintf("%.2f", params.tMax)), $(outputCounter[1])/$outputTotal") : nothing            
-            if frameDataToggle == 1
-                # Save system data to file 
-                
-                jldsave(datadir(folderName, "frameData", "systemData$(@sprintf("%03d", outputCounter[1])).jld2"); matrices, params, R)
+            R = reinterpret(SVector{2,Float64}, u)
+            spatialData!(R, params, matrices)
+            println("t = ", t, ", alltStops[outputCounter[1]] = ", alltStops[outputCounter[1]], ", outputCounter[1] = ", outputCounter[1])
+            if (t - alltStops[outputCounter[1]]) < 1e-8
+                # Update progress on command line 
+                printToggle == 1 ? println("$(@sprintf("%.2f", t))/$(@sprintf("%.2f", params.tMax)), $(outputCounter[1])/$outputTotal") : nothing            
+                if frameDataToggle == 1
+                    # Save system data to file 
+                    
+                    jldsave(datadir(folderName, "frameData", "systemData$(@sprintf("%03d", outputCounter[1])).jld2"); matrices, params, R)
+                end
+                if frameImageToggle == 1 || videoToggle == 1
+                    # Render visualisation of system and add frame to movie
+                    visualise(R, integratorP.t, fig, ax, mov, params, matrices, plotCells, scatterEdges, scatterVertices, scatterCells, plotForces, plotEdgeMidpointLinks)
+                end
+                # Save still image of this time step 
+                frameImageToggle == 1 ? save(datadir(folderName, "frameImages", "frameImage$(@sprintf("%03d", outputCounter[1])).png"), fig) : nothing
+                outputCounter[1] += 1
             end
-            if frameImageToggle == 1 || videoToggle == 1
-                # Render visualisation of system and add frame to movie
-                visualise(R, integrator.t, fig, ax, mov, params, matrices, plotCells, scatterEdges, scatterVertices, scatterCells, plotForces, plotEdgeMidpointLinks)
-            end
-            # Save still image of this time step 
-            frameImageToggle == 1 ? save(datadir(folderName, "frameImages", "frameImage$(@sprintf("%03d", outputCounter[1])).png"), fig) : nothing
-            outputCounter[1] += 1
+            t += dtStep
+            params.currentTime = t
         end
 
-        # Step integrator forwards in time to update vertex positions 
-        step!(integrator)
+        #Iterate until integrator time reaches max system time 
+        # while integratorP.t <= params.tMax 
+            
+        #     # Reinterpret state vector as a vector of SVectors 
+        #     R = reinterpret(SVector{2,Float64}, integratorP.u)
+        #     # Note that reinterpreting accesses the same underlying data, so changes to R will update integrator.u and vice versa 
 
-        # Update spatial data (edge lengths, cell areas, etc.) following iteration of the integrator
-        params.currentTime = integrator.t
-        spatialData!(R, params, matrices)
+        #     # Output data to file 
+        #     if integratorP.t == alltStops[outputCounter[1]] 
+        #         # Update progress on command line 
+        #         printToggle == 1 ? println("$(@sprintf("%.2f", integratorP.t))/$(@sprintf("%.2f", params.tMax)), $(outputCounter[1])/$outputTotal") : nothing            
+        #         if frameDataToggle == 1
+        #             # Save system data to file 
+                    
+        #             jldsave(datadir(folderName, "frameData", "systemData$(@sprintf("%03d", outputCounter[1])).jld2"); matrices, params, R)
+        #         end
+        #         if frameImageToggle == 1 || videoToggle == 1
+        #             # Render visualisation of system and add frame to movie
+        #             visualise(R, integratorP.t, fig, ax, mov, params, matrices, plotCells, scatterEdges, scatterVertices, scatterCells, plotForces, plotEdgeMidpointLinks)
+        #         end
+        #         # Save still image of this time step 
+        #         frameImageToggle == 1 ? save(datadir(folderName, "frameImages", "frameImage$(@sprintf("%03d", outputCounter[1])).png"), fig) : nothing
+        #         outputCounter[1] += 1
+        #     end
 
-        # Check system for T1 transitions 
-        if t1Transitions!(integrator, params, matrices) > 0
-            u_modified!(integrator, true)
-            # senseCheck(matrices.A, matrices.B; marker="T1") # Check for nonzero values in B*A indicating error in incidence matrices           
-            topologyChange!(matrices, params) # Update system matrices after T1 transition
-            spatialData!(R, params, matrices) # Update spatial data after T1 transition  
+        #     # Step integrator forwards in time to update vertex positions 
+        #     step!(integratorP)
+        #     spatialData!(R, params, matrices)
+        #     #step!(integratorP)
+
+        #     # Update spatial data (edge lengths, cell areas, etc.) following iteration of the integrator
+        #     params.currentTime = integratorP.t
+        #     #spatialData!(R, params, matrices)
+
+        #     # Check system for T1 transitions 
+        #     #if t1Transitions!(integrator, params, matrices) > 0
+        #     #    u_modified!(integrator, true)
+        #     #    # senseCheck(matrices.A, matrices.B; marker="T1") # Check for nonzero values in B*A indicating error in incidence matrices           
+        #     #    topologyChange!(matrices, params) # Update system matrices after T1 transition
+        #     #    spatialData!(R, params, matrices) # Update spatial data after T1 transition  
+        #     #end
+        #     # Update cell ages with (variable) timestep used in integration step
+        #     matrices.timeSinceT1 .+= integratorP.dt
+        # end
+
+        # If outputToggle==1, save animation object and save final system matrices
+        (outputToggle == 1 && videoToggle == 1 && isnothing(existingMov)) ? save(datadir(folderName, "$(splitpath(folderName)[end]).mp4"), mov) : nothing
+
+        if returnPlots
+            return integratorP, fig, ax, mov
+        else
+            return integratorP
         end
-        # Update cell ages with (variable) timestep used in integration step
-        matrices.timeSinceT1 .+= integrator.dt
-    end
-
-    # If outputToggle==1, save animation object and save final system matrices
-    (outputToggle == 1 && videoToggle == 1 && isnothing(existingMov)) ? save(datadir(folderName, "$(splitpath(folderName)[end]).mp4"), mov) : nothing
-
-    if returnPlots
-        return integrator, fig, ax, mov
-    else
-        return integrator
     end
 end
 
@@ -202,10 +305,77 @@ function loadData(relativePath; outputNumber=100)
     return data["R"], data["matrices"], data["params"]
 end
 
-# Ensure code is precompiled
-@compile_workload begin
-    vertexModel(nCycles=0.01, outputToggle=0, frameDataToggle=0, frameImageToggle=0, printToggle=0, videoToggle=0)
+function lieStep(u,t,dt,params,matrices,solver,abstol,reltol)
+    # Tension step
+
+    probT = ODEProblem(modelT!, u, (t, t+dt), (params, matrices))
+
+    solT = solve(probT, solver, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
+    u = solT.u[end]
+
+    R  = reinterpret(SVector{2,Float64}, u)
+    params.currentTime = t+dt
+    spatialData!(R, params, matrices)
+
+    # Pressure step
+    probP = ODEProblem(modelP!, u, (t, t+dt), (params, matrices))
+    solP = solve(probP, solver, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
+    u = solP.u[end]
+    return u
 end
+
+mutable struct LieIntegrator{IT, IP, S}
+    probT::IT
+    probP::IP
+    u
+    t
+    dt
+    sol
+    solver::S
+end
+
+function initLieIntegrator(probT,probP,solver;dt,abstol=1e-7,reltol=1e-4)
+    intT = init(probT, solver, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
+    intP = init(probP, solver, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
+
+    return LieIntegrator(intT, intP,copy(probT.u0),first(probT.tspan),dt,nothing,solver)
+end
+function lieStep!(u,t,dt,params,matrices,solver,abstol,reltol)
+    probT = ODEProblem(modelT!, u, (t, t+dt), (params, matrices))
+    solT = solve(probT, solver, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
+    u = solT.u[end]
+
+    R = reinterpret(SVector{2,Float64}, u)
+    params.currentTime = t+dt
+    spatialData!(R, params, matrices)
+
+    probP = ODEProblem(modelP!, u, (t, t+dt), (params, matrices))
+    solP = solve(probP, solver, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
+    u = solP.u[end]
+    return u
+end
+# function step!(I::LieIntegrator)
+
+#     # T step
+#     probT = remake(I.probT, u=I.u, tspan=(I.t,I.t+I.dt))
+#     solT = solve(probT, I.solver; save_on=false, save_start=false, save_end=true)
+#     I.u = solT.u[end]
+
+#     # P step
+#     probP = remake(I.probP, u=I.u, tspan=(I.t,I.t+I.dt))
+#     solP = solve(probP, I.solver; save_on=false, save_start=false, save_end=true)
+#     I.u = solP.u[end]
+
+#     # Advance time
+#     I.t += I.dt
+#     I.sol = solP
+#     return nothing
+# end
+# Ensure code is precompiled
+# @compile_workload begin
+#     vertexModel(nCycles=0.01, outputToggle=0, frameDataToggle=0, frameImageToggle=0, printToggle=0, videoToggle=0)
+# end
+
 
 export vertexModel
 export loadData 

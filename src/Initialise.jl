@@ -17,6 +17,7 @@ using Random
 using Distributions
 using Dates
 using CircularArrays
+using LinearAlgebra
 
 # Local modules
 @from "initialSystemLayout.jl" using InitialSystemLayout
@@ -37,9 +38,11 @@ function initialise(; initialSystem = "new",
         Pᵢ = 0.2,
         Pₘ = 0.0,
         P₀ = 0.0,
+        ω = π/(2*realCycleTime),
         Amp = 3,
         ipModel = "sinusoidal",
         viscousTimeScale = 1000.0,
+        boundaryCondition = "displacement",
         boundaryToggle = 0,
         edgeCellsToggle = 0,
         outputTotal = 100,
@@ -52,7 +55,7 @@ function initialise(; initialSystem = "new",
         R_in= spzeros(2),
         A_in= spzeros(2),
         B_in= spzeros(2),
-        initialEdgeLength = 0.75,
+        initialEdgeLength = 7/6,
     )
 
     # Calculate derived parameters
@@ -74,7 +77,16 @@ function initialise(; initialSystem = "new",
         cellTimeToDivide = rand(rng,Uniform(0.0, nonDimCycleTime), size(B, 1))  # Random initial cell ages
     elseif initialSystem == "new"
         isodd(nRows) && (nRows>1)  ? nothing : throw("nRows must be an odd number greater than 1.")
-        A, B, R = initialSystemLayout(nRows=nRows,boundaryToggle=boundaryToggle, initialEdgeLength=initialEdgeLength=5*L₀/6, edgeCellsToggle=edgeCellsToggle)
+        A, B, R = initialSystemLayout(nRows=nRows,boundaryToggle=boundaryToggle, initialEdgeLength=initialEdgeLength, edgeCellsToggle=edgeCellsToggle)
+        println("RAW INITIAL R:")
+        println("x range = ", extrema(r[1] for r in R))
+        println("y range = ", extrema(r[2] for r in R))
+
+        rawLengths = norm.(A * R)
+
+        println("RAW INITIAL EDGE LENGTHS:")
+        println(extrema(rawLengths))
+
     elseif initialSystem == "argument"
         R = R_in
         A = A_in
@@ -124,6 +136,7 @@ function initialise(; initialSystem = "new",
         cellPressures     = zeros(nCells),
         μ                 = ones(nCells),
         Γ                 = γ.*ones(nCells), 
+        avgEdgeCellNormals = fill(SVector{2,Float64}(zeros(2)), nVerts),
         edgeCellNormals     = spzeros(SVector{2,Float64}, nCells, nEdges),
         edgeLengths       = zeros(nEdges),
         edgeTangents      = fill(SVector{2,Float64}(zeros(2)), nEdges),
@@ -163,6 +176,8 @@ function initialise(; initialSystem = "new",
         P₀                = P₀,
         Amp                 = Amp,
         ipModel           = ipModel,
+        ω = ω,
+        boundaryCondition   = boundaryCondition,
         boundaryToggle    = boundaryToggle,
         edgeCellsToggle  = edgeCellsToggle,
         outputTotal       = outputTotal,
@@ -190,6 +205,9 @@ function initialise(; initialSystem = "new",
 
     topologyChange!(matrices, params)
     spatialData!(R, params, matrices)
+    println("AFTER TOPOLOGY/SPATIAL DATA:")
+    println(extrema(matrices.edgeLengths))
+
 
     # Convert vector of SVectors to flat vector of Float64
     u0 = Float64[]

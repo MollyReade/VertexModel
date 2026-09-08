@@ -27,7 +27,9 @@ using CircularArrays
     Pᵢ                 ::Float64            # Internal pressure per cell
     Pₘ                 ::Float64            # Pressure at mouth
     P₀                 ::Float64            # Pressure at system periphery
+    ω                  ::Float64            # Frequency of sinusoidal internal pressure
     Amp                ::Float64            # Amplitude of sinusoidal internal pressure 
+    boundaryCondition  ::String             # Choice of boundary condition (eg displacement, force)
     boundaryToggle     ::Bool              # Flag controlling whether boundary conditions are applied
     edgeCellsToggle    ::Bool              # Flag controlling whether edge cells are included in the system
     outputTotal        ::Int64              # Total number of data outputs
@@ -78,6 +80,7 @@ end
     cellPressures    ::Vector{Float64}                              # Vector of time left until division for each cell
     μ                ::Vector{Float64}                              # Vector of cell stiffness factors 
     Γ                ::Vector{Float64}                              # Vector of factors determinind relative strength of cell tension and internal pressure per cell 
+    avgEdgeCellNormals::Vector{SVector{2, Float64}}                  # Vector of 2D static vectors containing average normal vectors for each vertex, calculated from adjacent edge normals
     edgeCellNormals  ::SparseMatrixCSC{SVector{2, Float64}, Int64}  # Sparse array of vectors normal to each edge, indexed by adjacent cell and edge for each normal vector
     edgeLengths      ::Vector{Float64}                              # Vector of lengths for each edge in the system
     edgeTangents     ::Vector{SVector{2, Float64}}                  # Vector of 2D static vectors containing edge length and direction as a 2D vector

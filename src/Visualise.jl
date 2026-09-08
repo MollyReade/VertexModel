@@ -50,7 +50,6 @@ function visualise(R, t, fig, ax, mov, params, matrices, plotCells, scatterEdges
 
     # Plot cells
     if plotCells == 1
-        #TODO Implement cells having different colors based on their pressure values
         cellPolygons = makeCellPolygons(R, params, matrices)
         minPressure = minimum(cellPressures)
         maxPressure = maximum(cellPressures)
