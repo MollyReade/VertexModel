@@ -42,11 +42,21 @@ function visualise(R, t, fig, ax, mov, params, matrices, plotCells, scatterEdges
     @unpack nEdges,
         nVerts,
         nCells,
-        Pᵢ = params
+        Pᵢ,
+        Amp,
+        ω,
+        boundaryCondition,
+        P₀ = params
 
     empty!(ax)
 
-    ax.title = "t = $(@sprintf("%.3f", t)), Pᵢ = $(@sprintf("%.3f", mean(cellPressures)))"
+    if boundaryCondition == "displacement"
+        ax.title = "t = $(@sprintf("%.3f", t)), s(t) = $(@sprintf("%.3f",(Amp/ω)*(1-cos(ω*t)))))" #(Amp/ω)*(1-cos(ω*(t)))
+    elseif boundaryCondition == "force" && ipModel == "sinusoidal"
+        ax.title = "t = $(@sprintf("%.3f", t)), Pₚ = $(@sprintf("%.3f",P₀ + Amp*sin(t))))" #P₀ + Amp * sin(t)
+    else
+        ax.title = "t = $(@sprintf("%.3f", t)), Pₚ = $(@sprintf("%.3f",P₀)))"
+    end
 
     # Plot cells
     if plotCells == 1
@@ -96,7 +106,7 @@ function visualise(R, t, fig, ax, mov, params, matrices, plotCells, scatterEdges
     end
 
     # Set limits
-    add_ruler!(ax,matrices,params)
+    add_ruler!(ax,matrices,params,R)
     reset_limits!(ax)
 
     # Add frame to movie 
@@ -106,22 +116,21 @@ function visualise(R, t, fig, ax, mov, params, matrices, plotCells, scatterEdges
 
 end
 
-function add_ruler!(ax, matrices, params; xpos_frac=0.1, ypos_frac=0.01)
+function add_ruler!(ax, matrices, params,R; xpos_frac=0.1, ypos_frac=0.01)
 
     @unpack edgeLengths = matrices
     @unpack nRows = params
     
-    xrange = Statistics.mean(edgeLengths)*(nRows÷2 + 1)
+    xrange = extrema(r[1] for r in R)
 
-    
     xstart =  xpos_frac 
-    xend = xstart + xrange
+    xend = xstart + xrange[end]
     ypos = -Statistics.mean(edgeLengths)*(nRows÷2 + 1.5)
 
 
-    lines!(ax,[xstart, xend], [ypos - 0.01 * xrange, ypos + 0.01 * xrange], color=:red, linewidth=5)
+    lines!(ax,[xstart, xend], [ypos - 0.01 * xrange[end], ypos + 0.01 * xrange[end]], color=:red, linewidth=5)
 
-    text!(ax, string(round(xrange, sigdigits=3)), position=((xstart+xend)/2, ypos + 0.02 * xrange), color=:red, align = (:center, :bottom), fontsize=20)
+    text!(ax, string(round(xrange[end], sigdigits=3)), position=((xstart+xend)/2, ypos + 0.02 * xrange[end]), color=:red, align = (:center, :bottom), fontsize=20)
 end
 
 function pressureToColour(pressure, minPressure, maxPressure)

@@ -73,7 +73,7 @@ function topologyChange!(matrices, params)
         boundaryVertices .= Āᵀ * abs.(sum.(eachcol(B))) .÷ 2
     else
         numCellsPerVertex = [count(!iszero, C[:,k]) for k in 1:size(C,2)]
-        boundaryVertices = [num == 3 ? 0 : 1 for num in numCellsPerVertex]
+        boundaryVertices .= [num == 3 ? 0 : 1 for num in numCellsPerVertex]
 
     end
     #Find a list of edges at system periphery

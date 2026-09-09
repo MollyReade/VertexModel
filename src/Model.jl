@@ -380,7 +380,7 @@ function tensionComponent(u,p,t)
 
     # Reinterpret state vector as a vector of SVectors 
     R = reinterpret(SVector{2,Float64}, u)
-    dR = spzeros(SVector{2,Float64}, nVerts)
+    dR = fill(SVector{2,Float64}(0, 0), nVerts)
 
     spatialData!(R, params, matrices)
 
@@ -406,10 +406,10 @@ function tensionComponent(u,p,t)
         
     end
     
-    preMult = zeros(Float64, nVerts, nVerts)
-    for k = 1:nVerts
-        preMult[k,k] += κ * vertexAreas[k] 
-    end
+    # preMult = zeros(Float64, nVerts, nVerts)
+    # for k = 1:nVerts
+    #     preMult[k,k] += κ * vertexAreas[k] 
+    # end
     if boundaryCondition == "displacement"
         for k in 1:nVerts
             if boundaryVertices[k] == 1
@@ -418,7 +418,7 @@ function tensionComponent(u,p,t)
         end
     end
     
-    dR .= preMult \ dR
+    dR ./= κ .* vertexAreas
 
     return dR
 end
@@ -462,6 +462,7 @@ function inversePressure!(R,p,t)
         Pᵢₚ = 0
     end
 
+    # TODO move to spatial data
     for k = 1:nVerts
         ∂𝒜∂r[k] = @SVector zeros(2)
         for i = 1:nCells
@@ -471,6 +472,7 @@ function inversePressure!(R,p,t)
         end
     end
 
+    # TODO move to spatial data
     for j = 1:nEdges
         T[j] = edgeTensions[j] * normEdges[j]
     end
@@ -513,9 +515,9 @@ function pressureComponent(u,p,t)
 
     # Reinterpret state vector as a vector of SVectors 
     R = reinterpret(SVector{2,Float64}, u)
-    dR = spzeros(SVector{2,Float64}, nVerts)
+    dR = fill(SVector{2,Float64}(0, 0), nVerts)
 
-    spatialData!(R, params, matrices)
+    #spatialData!(R, params, matrices)
 
     for k = 1:nVerts
         dR[k] = @SVector zeros(2)
@@ -524,10 +526,10 @@ function pressureComponent(u,p,t)
         end
     end
     
-    preMult = zeros(Float64, nVerts, nVerts)
-    for k = 1:nVerts
-        preMult[k,k] += κ * vertexAreas[k] 
-    end
+    # preMult = zeros(Float64, nVerts, nVerts)
+    # for k = 1:nVerts
+    #     preMult[k,k] += κ * vertexAreas[k] 
+    # end
 
     if boundaryCondition == "displacement"
         for k in 1:nVerts
@@ -537,7 +539,7 @@ function pressureComponent(u,p,t)
         end
     end
     
-    dR .= preMult \ dR 
+    dR ./= κ .* vertexAreas 
 
     return dR
 end
@@ -546,6 +548,8 @@ function splitStep(r⁰, u0, p,t, Δt)
     params, matrices = p
     @unpack A, boundaryVertices, avgEdgeCellNormals, cellPressures, areaJacobian, cellαᵢs = matrices
     @unpack boundaryCondition, Amp, ω, Pₘ, nCells, nVerts = params
+
+    # TODO prealocate dR0, R+, dR+, R1
 
     initialR = reinterpret(SVector{2,Float64}, u0)
     R⁰ = reinterpret(SVector{2,Float64}, r⁰)

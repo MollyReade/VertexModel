@@ -45,14 +45,14 @@ function vertexModel(;
     A₀ = 1.0,
     Pᵢ = 0.0,
     Pₘ = 0.0,
-    P₀ = 0.5,
+    P₀ = 0.0,
     ω = π/(2*realCycleTime),
-    Amp = 0.2,
+    Amp = 0.0,
     ipModel = "sinusoidal",
     viscousTimeScale = 1.0,
     peripheralTension = 0.0,
     t1Threshold = 0.00,
-    boundaryCondition = "force", # "displacement" or "force"
+    boundaryCondition = "displacement", # "displacement" or "force"
     boundaryToggle = 0,
     edgeCellsToggle = 0,
     solveMethod = "Manual",  #Manual or ODEProblem
@@ -161,8 +161,8 @@ function vertexModel(;
                 frameImageToggle == 1 ? save(datadir(folderName, "frameImages", "frameImage$(@sprintf("%03d", outputCounter[1])).png"), fig) : nothing
                 outputCounter[1] += 1
             end
-            t += dt
             u = splitStep(u, u0,(params,matrices), t, dt/2)
+            t += dt
 
             params.currentTime = t
             spatialData!(R, params, matrices)
