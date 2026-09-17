@@ -359,14 +359,18 @@ function divₐ(areaJacobian, cellAreas, V)
 end
 
 
-function tensionComponent(u,p,t)
+function tensionComponent!(u,p,t)
      params, matrices = p
     @unpack A,
+         B,
          edgeTensions,
          boundaryVertices,
          edgeCellNormals,
          normEdges,
-         vertexAreas = matrices
+         vertexAreas,
+         dR⁰,
+         areaJacobian,
+         cellPressures = matrices
     @unpack nVerts,
          nCells,
          nEdges,
@@ -380,9 +384,9 @@ function tensionComponent(u,p,t)
 
     # Reinterpret state vector as a vector of SVectors 
     R = reinterpret(SVector{2,Float64}, u)
-    dR = fill(SVector{2,Float64}(0, 0), nVerts)
+    fill!(dR⁰, @SVector zeros(2))
 
-    spatialData!(R, params, matrices)
+    spatialData!(R, params, matrices) 
 
     if boundaryCondition == "force"
         if ipModel == "sinusoidal"
@@ -391,39 +395,69 @@ function tensionComponent(u,p,t)
             Pᵢₚ = P₀
         end
     else
-        Pᵢₚ =0
+        Pᵢₚ = 0 # Set pleural pressure to zero if using displacement boundary condition
     end
 
-    for k = 1:nVerts
-        dR[k] = @SVector zeros(2)
-        for j = 1:nEdges
-            dR[k] += - A[j, k] * edgeTensions[j] * (normEdges[j])
-            for i = 1:nCells
-                dR[k] += (Pᵢₚ - Pₘ) * 0.5 * edgeCellNormals[i,j] * abs(A[j,k])
-            end
+    #----------------- THESE TWO LOOPS PRODUCE VERY DIFFERENT RESULTS
+    # for k = 1:nVerts
+    #     for j = 1:nEdges
+    #         dR⁰[k] += - A[j, k] * edgeTensions[j] * (normEdges[j]) # Tension contribution
+    #         for i = 1:nCells
+    #             #TODO Can i replace this triple loop?
+    #             #TODO Replace abs A with already existing abs a
+    #             #Bottleneck line
+    #             dR⁰[k] += (Pᵢₚ - Pₘ) * 0.5 * edgeCellNormals[i,j] * abs(A[j,k])  # Contribution from prescibed pressure at mouth and pleural pressure
+    #         end
             
-        end
+    #     end
         
+    # end
+
+    for k = 1:nVerts
+        for p in A.colptr[k]:(A.colptr[k+1]-1)
+            j = A.rowval[p]
+            Aⱼₖ = A.nzval[p]
+            dR⁰[k]+= - Aⱼₖ * edgeTensions[j] * normEdges[j]
+            for q in B.colptr[j]:(B.colptr[j+1]-1)
+                i = B.rowval[q]
+                dR⁰[k]+= (Pᵢₚ - Pₘ) * 0.5 * edgeCellNormals[i,j]
+            end
+        end
+    end
+
+    # for k in 1:nVerts
+    #     edges = findnz(@view A[:,k])[1]
+    #     for a in 1:length(edges)
+    #         j = edges[a]
+    #         dR⁰[k] += - A[j,k] * edgeTensions[j] * normEdges[j]
+    #         cells = findnz(@view B[:,j])[1]
+    #         for b in 1:length(cells)
+    #             i = cells[b]
+    #             dR⁰[k] += (Pᵢₚ - Pₘ) * 0.5 * edgeCellNormals[i,j]
+    #         end
+    #     end
+    # end
+    # ------------------------------
+    for k = 1:nVerts
+        for i = 1:nCells
+            dR⁰[k] += areaJacobian[i,k] * cellPressures[i] # Force due to internal presuures
+        end
     end
     
-    # preMult = zeros(Float64, nVerts, nVerts)
-    # for k = 1:nVerts
-    #     preMult[k,k] += κ * vertexAreas[k] 
-    # end
     if boundaryCondition == "displacement"
         for k in 1:nVerts
             if boundaryVertices[k] == 1
-                dR[k] = @SVector zeros(2)
+                dR⁰[k] = @SVector zeros(2)
             end
         end
     end
     
-    dR ./= κ .* vertexAreas
+    dR⁰ ./= κ .* vertexAreas
 
-    return dR
+    
 end
 
-function inversePressure!(R,p,t)
+function inversePressure!(p,t)
     params, matrices = p
     @unpack A,
         areaJacobian,
@@ -433,7 +467,11 @@ function inversePressure!(R,p,t)
         edgeTensions,
         normEdges,
         cellαᵢs,
-        cellPressures = matrices
+        cellPressures,
+        R⁺,
+        ∂𝒜∂r,
+        T,
+        laplacian = matrices
     @unpack κ,
         nCells,
         nEdges,
@@ -444,14 +482,10 @@ function inversePressure!(R,p,t)
         Pₘ,
         boundaryCondition = params
 
-    spatialData!(R, params, matrices)
+    spatialData!(R⁺, params, matrices)
 
-    #gradₐ = Diagonal(vertexAreas)^(-1) * areaJacobian'
-    #divₐ = - Diagonal(cellAreas)^(-1) * areaJacobian
     gradₗ = A'
-    ∂𝒜∂r = spzeros(SVector{2,Float64}, nVerts, 1)
-    T = spzeros(SVector{2,Float64}, nEdges, 1)
-
+    
     if boundaryCondition == "force"
         if ipModel == "sinusoidal" 
             Pᵢₚ = P₀ + Amp * sin(t)
@@ -462,135 +496,151 @@ function inversePressure!(R,p,t)
         Pᵢₚ = 0
     end
 
-    # TODO move to spatial data
+    fill!(laplacian,0)
+    dropzeros!(laplacian)
+
+    # ------ THESE TWO LOOPS DONT MATCH EITHER
+
+    # for i in 1:nCells
+    #     for m in 1:nCells
+    #         for k in 1:nVerts
+    #             laplacian[i,m] += dot(areaJacobian[i,k],
+    #                         areaJacobian[m,k]) / vertexAreas[k]    # Define the laplacian
+    #                         #TODO Main bottleneck now
+    #         end
+    #     end
+    # end
+
     for k = 1:nVerts
-        ∂𝒜∂r[k] = @SVector zeros(2)
-        for i = 1:nCells
-            for j = 1:nEdges
-                ∂𝒜∂r[k] += 0.5* edgeCellNormals[i,j] * abs(A[j,k])
+        invDₖ = 1/vertexAreas[k]
+        rng = areaJacobian.colptr[k]:(areaJacobian.colptr[k+1]-1)
+        n = length(rng)
+        for a in 1:n
+            pa = rng[a]
+            i = areaJacobian.rowval[pa]
+            vi = areaJacobian.nzval[pa]
+            for b in a:n
+                pb = rng[b]
+                m=areaJacobian.rowval[pb]
+                vm = areaJacobian.nzval[pb]
+                Lim = dot(vi, vm) * invDₖ
+                laplacian[i,m] += Lim
+                if i != m 
+                    laplacian[m,i] += Lim
+                end
             end
         end
     end
 
-    # TODO move to spatial data
-    for j = 1:nEdges
-        T[j] = edgeTensions[j] * normEdges[j]
-    end
+    # for k in 1:nVerts
+    #     cells = findnz(@view areaJacobian[:,k])[1]
+    #     for a in 1:length(cells)
+    #         i = cells[a]
+    #         for b in a:length(cells)
+    #             m = cells[b]
+    #             Lᵢₘ = dot(areaJacobian[i,k],areaJacobian[m,k]) / vertexAreas[k]
+    #             laplacian[i,m] += Lᵢₘ
+    #             if i != m
+    #                 laplacian[m,i] += Lᵢₘ
+    #             end
+    #         end
+    #     end
+    # end
 
-    L = zeros(Float64, nCells, nCells)
+    # --------------------------------------------
 
-    for i in 1:nCells
-        for m in 1:nCells
-            for k in 1:nVerts
-                L[i,m] += dot(areaJacobian[i,k],
-                            areaJacobian[m,k]) / vertexAreas[k]
-            end
-        end
-    end
-
-    RHS = -Diagonal(cellAreas)*divₐ(areaJacobian, cellAreas,(Diagonal(vertexAreas)^(-1)*gradₗ*T))
-    RHS += κ*Diagonal(cellαᵢs)^(-1)*Pₘ*ones(nCells)
-    RHS += Diagonal(cellAreas)*divₐ(areaJacobian,cellAreas,Diagonal(vertexAreas)^(-1)*(Pᵢₚ - Pₘ)*∂𝒜∂r)
-    cellPressures .= (κ*Diagonal(cellαᵢs)^(-1) + L) \ (RHS)
-
-    # println("L range           : ", extrema(L))
-    # println("cond(M)            : ", cond(Matrix(
-    #     κ*Diagonal(1.0 ./ cellαᵢs) + L
-    # )))
-    # println("RHS norm           : ", norm(RHS))
-    # println("pressure range     : ", extrema(cellPressures))
+    # TODO swap out Diagonals?
+    RHS = -spdiagm(cellAreas)*divₐ(areaJacobian, cellAreas,(spdiagm(1 ./ vertexAreas)*gradₗ*T))
+    RHS += κ*spdiagm(1 ./ cellαᵢs)*Pₘ*ones(nCells)
+    RHS += spdiagm(cellAreas)*divₐ(areaJacobian,cellAreas,spdiagm(1 ./ vertexAreas)*(Pᵢₚ - Pₘ)*∂𝒜∂r)
+    cellPressures .= (κ*spdiagm(1 ./ cellαᵢs) + laplacian) \ (RHS)   # Invert for cell pressures
 
 end
 
-function pressureComponent(u,p,t)
+function pressureComponent!(p,t,oldJacobian,oldPressures)
      params, matrices = p
     @unpack areaJacobian,
         cellPressures,
         boundaryVertices,
-        vertexAreas = matrices
+        vertexAreas,
+        R⁺,
+        dR⁺ = matrices
     @unpack nVerts,
         nCells,
         boundaryCondition,
         κ = params
 
     # Reinterpret state vector as a vector of SVectors 
-    R = reinterpret(SVector{2,Float64}, u)
-    dR = fill(SVector{2,Float64}(0, 0), nVerts)
-
-    #spatialData!(R, params, matrices)
+    fill!(dR⁺, @SVector zeros(2))
 
     for k = 1:nVerts
-        dR[k] = @SVector zeros(2)
         for i = 1:nCells
-            dR[k] += areaJacobian[i,k] * cellPressures[i]
+            dR⁺[k] += areaJacobian[i,k] * cellPressures[i] -oldJacobian[i,k] * oldPressures[i] # Force due to internal presuures
         end
     end
-    
-    # preMult = zeros(Float64, nVerts, nVerts)
-    # for k = 1:nVerts
-    #     preMult[k,k] += κ * vertexAreas[k] 
-    # end
 
     if boundaryCondition == "displacement"
         for k in 1:nVerts
             if boundaryVertices[k] == 1
-                dR[k] = @SVector zeros(2)
+                dR⁺[k] = @SVector zeros(2) # If the boundary is prescibed, no force balance on it
             end
         end
     end
     
-    dR ./= κ .* vertexAreas 
+    dR⁺ ./= κ .* vertexAreas # Dissipation
 
-    return dR
 end
 
 function splitStep(r⁰, u0, p,t, Δt)
     params, matrices = p
-    @unpack A, boundaryVertices, avgEdgeCellNormals, cellPressures, areaJacobian, cellαᵢs = matrices
+    @unpack A, boundaryVertices, avgEdgeCellNormals, cellPressures, areaJacobian, cellαᵢs, dR⁰, R⁺, dR⁺, R¹, cellAreas = matrices
     @unpack boundaryCondition, Amp, ω, Pₘ, nCells, nVerts = params
-
-    # TODO prealocate dR0, R+, dR+, R1
 
     initialR = reinterpret(SVector{2,Float64}, u0)
     R⁰ = reinterpret(SVector{2,Float64}, r⁰)
 
-    dR⁰ = tensionComponent(r⁰, p, t)
+    tensionComponent!(r⁰, p, t) # Updates dR0 using tension terms, Pm and Pip
+    #println("a₀: ", cellAreas)
+    oldJacobian = copy(areaJacobian)
+    oldPressures = copy(cellPressures)
 
     # Tension Step
-    R⁺ = R⁰ + Δt *  dR⁰
+    R⁺ .= R⁰ + Δt * dR⁰ # Calculate intermediate position
     if boundaryCondition == "displacement"
         for k in 1:length(R⁺)
             if boundaryVertices[k] == 1
-                R⁺[k] = initialR[k] .+ (Amp/ω)*(1-cos(ω*(t+Δt)))*avgEdgeCellNormals[k]
+                R⁺[k] = initialR[k] .+ (Amp/ω)*(1-cos(ω*(t+Δt)))*avgEdgeCellNormals[k] # Prescibe boundary
             end
         end
     end
 
     # Intermediate Pressure
 
-    inversePressure!(R⁺, p, t)
+    inversePressure!(p, t) # Updates cell pressures using R+
+
+    #println("a⁺: ", cellAreas)
 
     # Pressure step
 
-    dR⁺ = pressureComponent(R⁺,p,t)
+    pressureComponent!(p,t,oldJacobian,oldPressures) # Updates dR+ using internal pressure term
 
-    R¹ = R⁺ .+ Δt * dR⁺
+    R¹ .= R⁺ .+ Δt * dR⁺ # Calculate final position
 
     if boundaryCondition == "displacement"
         for k in 1:length(R⁺)
             if boundaryVertices[k] == 1
-                R¹[k] = initialR[k] .+ (Amp/ω)*(1-cos(ω*(t+2*Δt)))*avgEdgeCellNormals[k]
+                R¹[k] = initialR[k] .+ (Amp/ω)*(1-cos(ω*(t+2*Δt)))*avgEdgeCellNormals[k] # Prescibe boundary
             end
         end
     end
 
     
-    # daᵢdt = zeros(nCells)
-    # for i in 1:nCells
-    #     daᵢdt[i] = sum(dot(areaJacobian[i,k],dR⁺[k]+dR⁰[k]) for k in 1:nVerts)
-    # end
+    daᵢdt = zeros(nCells)
+    for i in 1:nCells
+        daᵢdt[i] = sum(dot(areaJacobian[i,k],dR⁺[k]+dR⁰[k]) for k in 1:nVerts)
+    end
 
-    # println("Pressure check: ",cellPressures .- (Pₘ*ones(nCells) .- Diagonal(cellαᵢs)*daᵢdt) )
+    #println("Pressure check: ",cellPressures .- (Pₘ*ones(nCells) .- Diagonal(cellαᵢs)*daᵢdt) )
 
     return reinterpret(Float64, R¹)
 end

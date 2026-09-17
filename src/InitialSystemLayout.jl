@@ -33,7 +33,7 @@ function initialSystemLayout(;
     horizontalCellSpacing = 2.0*equilibriumEdgeLength*sin(π/3.0)
     verticalCellSpacing = 1.5*equilibriumEdgeLength
 
-    # nRows = 9 # Must be an odd number
+    # Must be an odd number
     cellPoints = [SVector(x, 0.0) for x = 1:nRows]
     for j = 1:(floor(Int64,nRows/2))
         for i = 1:nRows-j

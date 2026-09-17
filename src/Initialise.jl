@@ -55,7 +55,7 @@ function initialise(; initialSystem = "new",
         R_in= spzeros(2),
         A_in= spzeros(2),
         B_in= spzeros(2),
-        initialEdgeLength = 7/6,
+        initialEdgeLength = 6/6,
     )
 
     # Calculate derived parameters
@@ -156,6 +156,13 @@ function initialise(; initialSystem = "new",
                                 -1.0 0.0
                             ]),
         cellShapeTensor   = fill(SMatrix{2,2,Float64}(zeros(2,2)), nCells),
+        dR⁰ = fill(SVector{2,Float64}(zeros(2)), nVerts),
+        R⁺ = fill(SVector{2,Float64}(zeros(2)), nVerts), 
+        dR⁺ = fill(SVector{2,Float64}(zeros(2)), nVerts), 
+        R¹ = fill(SVector{2,Float64}(zeros(2)), nVerts),
+        ∂𝒜∂r = fill(SVector{2,Float64}(zeros(2)),nVerts),
+        T = fill(SVector{2,Float64}(zeros(2)),nEdges),
+        laplacian = spzeros(Float64,nCells,nCells)
     )
 
     # Pack parameters into a struct for convenience

@@ -35,7 +35,7 @@ function vertexModel(;
     initialSystem = "new",
     nRows = 5,
     nCycles = 1,
-    realCycleTime = 8.640,
+    realCycleTime = 20,
     realTimetMax = nCycles*realCycleTime,
     Λ = 1,
     κ = 0.05,
@@ -45,16 +45,16 @@ function vertexModel(;
     A₀ = 1.0,
     Pᵢ = 0.0,
     Pₘ = 0.0,
-    P₀ = 0.0,
+    P₀ = 0.6,   # P₀ >= 2*Amp for no buckling due to convex outer alveoli
     ω = π/(2*realCycleTime),
-    Amp = 0.0,
+    Amp = 0.05,
     ipModel = "sinusoidal",
     viscousTimeScale = 1.0,
     peripheralTension = 0.0,
     t1Threshold = 0.00,
-    boundaryCondition = "displacement", # "displacement" or "force"
+    boundaryCondition = "force", # "displacement" or "force"
     boundaryToggle = 0,
-    edgeCellsToggle = 0,
+    edgeCellsToggle = 1,
     solveMethod = "Manual",  #Manual or ODEProblem
     solver = Tsit5(),
     nBlasThreads = 1,
@@ -162,6 +162,9 @@ function vertexModel(;
                 outputCounter[1] += 1
             end
             u = splitStep(u, u0,(params,matrices), t, dt/2)
+            # minD = minimum(matrices.vertexAreas[matrices.boundaryVertices .== 1])
+            # minEdgeLen = minimum(matrices.edgeLengths[matrices.boundaryEdges .== 1])
+            # println(minD, minEdgeLen)
             t += dt
 
             params.currentTime = t

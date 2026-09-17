@@ -97,6 +97,13 @@ end
     totalF           ::Vector{SVector{2, Float64}}                  # Vector of 2D static vectors containing resultant force vectors acting on each vertex
     ϵ                ::SMatrix{2, 2, Float64, 4}                    # Antisymmetric rotation matrix
     cellShapeTensor  ::Vector{SMatrix{2, 2, Float64}}               # Shape tensor of a cell
+    dR⁰              ::Vector{SVector{2, Float64}}                  # Tension component result in operator split
+    R⁺               ::Vector{SVector{2, Float64}}                  # Updated position vecors after tension step
+    dR⁺              ::Vector{SVector{2, Float64}}                  # Pressure component result in operator split
+    R¹               ::Vector{SVector{2, Float64}}                  # Final result of operator split after updating position with pressure
+    ∂𝒜∂r             ::Vector{SVector{2, Float64}}                  # Jacobian of total area with respect to each vertex
+    T                ::Vector{SVector{2, Float64}}                  # Vector of directed edge tensions
+    laplacian        ::SparseMatrixCSC{Float64, Int64}              # Laplacian used for pressure invert
 end
 
 export ParametersContainer,MatricesContainer

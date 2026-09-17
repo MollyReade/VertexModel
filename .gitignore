@@ -30,6 +30,7 @@ data/*
 *.code-workspace
 *.mp4
 *.png
+*.html
 
 old/
 cellAreas_all.jld2

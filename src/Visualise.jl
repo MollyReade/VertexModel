@@ -46,7 +46,8 @@ function visualise(R, t, fig, ax, mov, params, matrices, plotCells, scatterEdges
         Amp,
         ω,
         boundaryCondition,
-        P₀ = params
+        P₀,
+        ipModel = params
 
     empty!(ax)
 
