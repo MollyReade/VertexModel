@@ -35,20 +35,20 @@ function vertexModel(;
     initialSystem = "new",
     nRows = 5,
     nCycles = 1,
-    realCycleTime = 20,
+    realCycleTime = 100,
     realTimetMax = nCycles*realCycleTime,
     Λ = 1,
-    κ = 0.05,
+    κ = 0.005,
     γ = 0.2,
     L₀ = 1,
     l₀ = 1,
     A₀ = 1.0,
     Pᵢ = 0.0,
     Pₘ = 0.0,
-    P₀ = 0.6,   # P₀ >= 2*Amp for no buckling due to convex outer alveoli
+    P₀ = 0.2,   # P₀ >= 2*Amp for no buckling due to convex outer alveoli
     ω = π/(2*realCycleTime),
     Amp = 0.05,
-    ipModel = "sinusoidal",
+    boundaryModel = "sinusoidal", #sinusoidal or constant
     viscousTimeScale = 1.0,
     peripheralTension = 0.0,
     t1Threshold = 0.00,
@@ -76,6 +76,7 @@ function vertexModel(;
     reltol = 1e-4,
     energyModel = "ventilation_rational",
     resistanceModel = "Linear",
+    relaxFirst = true,
     dissipationToggle = 0,
     R_in = spzeros(2),
     A_in = spzeros(2),
@@ -102,7 +103,7 @@ function vertexModel(;
         P₀ = P₀,
         ω = ω,
         Amp = Amp,
-        ipModel = ipModel,
+        ipModel = boundaryModel,
         viscousTimeScale = viscousTimeScale,
         boundaryToggle = boundaryToggle,
         boundaryCondition = boundaryCondition,
@@ -139,10 +140,30 @@ function vertexModel(;
     end
 
     if solveMethod == "Manual"
+        if relaxFirst
+            t0 = 0.0
+            params.ipModel = "constant"
+            alltStops = collect(0.0:params.outputInterval:params.tMax)
+            u = u0
+            diff = 100
+            while diff > 1e-4
+                u1 = copy(u)
+                dt = params.outputInterval/10000.0
+                R = reinterpret(SVector{2,Float64},u)
+                u = splitStep(u,u0,(params,matrices), t0, dt/2)
+                t0 += dt
+                diff = abs(norm(matrices.cellPressures))
+                spatialData!(R,params,matrices)
+            end
+            println(diff)
+        else
+            u = u0
+        end
+        params.ipModel = boundaryModel
         t = 0.0
         alltStops = collect(0.0:params.outputInterval:params.tMax) # Time points that the solver will be forced to land at during integration
         outputCounter = [1]
-        u = u0
+        #u = u0
         while t < params.tMax
             dt = params.outputInterval/10000.0
             R = reinterpret(SVector{2,Float64}, u)
@@ -156,9 +177,9 @@ function vertexModel(;
                 if frameImageToggle == 1 || videoToggle == 1
                     # Render visualisation of system and add frame to movie
                     visualise(R, t, fig, ax, mov, params, matrices, plotCells, scatterEdges, scatterVertices, scatterCells, plotForces, plotEdgeMidpointLinks)
+                    frameImageToggle == 1 ? save(datadir(folderName, "frameImages", "frameImage$(@sprintf("%03d", outputCounter[1])).png"), fig) : nothing
                 end
                 # Save still image of this time step 
-                frameImageToggle == 1 ? save(datadir(folderName, "frameImages", "frameImage$(@sprintf("%03d", outputCounter[1])).png"), fig) : nothing
                 outputCounter[1] += 1
             end
             u = splitStep(u, u0,(params,matrices), t, dt/2)
@@ -308,55 +329,55 @@ function loadData(relativePath; outputNumber=100)
     return data["R"], data["matrices"], data["params"]
 end
 
-function lieStep(u,t,dt,params,matrices,solver,abstol,reltol)
-    # Tension step
+# function lieStep(u,t,dt,params,matrices,solver,abstol,reltol)
+#     # Tension step
 
-    probT = ODEProblem(modelT!, u, (t, t+dt), (params, matrices))
+#     probT = ODEProblem(modelT!, u, (t, t+dt), (params, matrices))
 
-    solT = solve(probT, solver, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
-    u = solT.u[end]
+#     solT = solve(probT, solver, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
+#     u = solT.u[end]
 
-    R  = reinterpret(SVector{2,Float64}, u)
-    params.currentTime = t+dt
-    spatialData!(R, params, matrices)
+#     R  = reinterpret(SVector{2,Float64}, u)
+#     params.currentTime = t+dt
+#     spatialData!(R, params, matrices)
 
-    # Pressure step
-    probP = ODEProblem(modelP!, u, (t, t+dt), (params, matrices))
-    solP = solve(probP, solver, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
-    u = solP.u[end]
-    return u
-end
+#     # Pressure step
+#     probP = ODEProblem(modelP!, u, (t, t+dt), (params, matrices))
+#     solP = solve(probP, solver, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
+#     u = solP.u[end]
+#     return u
+# end
 
-mutable struct LieIntegrator{IT, IP, S}
-    probT::IT
-    probP::IP
-    u
-    t
-    dt
-    sol
-    solver::S
-end
+# mutable struct LieIntegrator{IT, IP, S}
+#     probT::IT
+#     probP::IP
+#     u
+#     t
+#     dt
+#     sol
+#     solver::S
+# end
 
-function initLieIntegrator(probT,probP,solver;dt,abstol=1e-7,reltol=1e-4)
-    intT = init(probT, solver, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
-    intP = init(probP, solver, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
+# function initLieIntegrator(probT,probP,solver;dt,abstol=1e-7,reltol=1e-4)
+#     intT = init(probT, solver, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
+#     intP = init(probP, solver, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
 
-    return LieIntegrator(intT, intP,copy(probT.u0),first(probT.tspan),dt,nothing,solver)
-end
-function lieStep!(u,t,dt,params,matrices,solver,abstol,reltol)
-    probT = ODEProblem(modelT!, u, (t, t+dt), (params, matrices))
-    solT = solve(probT, solver, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
-    u = solT.u[end]
+#     return LieIntegrator(intT, intP,copy(probT.u0),first(probT.tspan),dt,nothing,solver)
+# end
+# function lieStep!(u,t,dt,params,matrices,solver,abstol,reltol)
+#     probT = ODEProblem(modelT!, u, (t, t+dt), (params, matrices))
+#     solT = solve(probT, solver, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
+#     u = solT.u[end]
 
-    R = reinterpret(SVector{2,Float64}, u)
-    params.currentTime = t+dt
-    spatialData!(R, params, matrices)
+#     R = reinterpret(SVector{2,Float64}, u)
+#     params.currentTime = t+dt
+#     spatialData!(R, params, matrices)
 
-    probP = ODEProblem(modelP!, u, (t, t+dt), (params, matrices))
-    solP = solve(probP, solver, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
-    u = solP.u[end]
-    return u
-end
+#     probP = ODEProblem(modelP!, u, (t, t+dt), (params, matrices))
+#     solP = solve(probP, solver, abstol=abstol, reltol=reltol, save_on=false, save_start=false, save_end=true)
+#     u = solP.u[end]
+#     return u
+# end
 # function step!(I::LieIntegrator)
 
 #     # T step

@@ -69,6 +69,7 @@ function visualise(R, t, fig, ax, mov, params, matrices, plotCells, scatterEdges
             color = pressureToColour(cellPressures[i], minPressure, maxPressure)
             poly!(ax, cellPolygons[i], color=color, strokecolor=(:black, 1.0), strokewidth=2)
         end
+        Colorbar(fig[1,2], limits = (-3,3), colormap = :viridis, label = "Pressure", height= Relative(0.5))
     end
 
     # Scatter vertices
@@ -91,6 +92,7 @@ function visualise(R, t, fig, ax, mov, params, matrices, plotCells, scatterEdges
 
     # Plot resultant forces on vertices (excluding external pressure)
     # NB these forces will be those calculated in the previous integration step and thus will not be exactly up to date for the current vertex positions
+    # FIXME Forces out of date
     if plotForces == 1
         arrows2d!(ax, Point{2,Float64}.(R), Vec2f.(sum(F.+FEdges, dims=2)), color=:green)
     end
@@ -129,14 +131,17 @@ function add_ruler!(ax, matrices, params,R; xpos_frac=0.1, ypos_frac=0.01)
     ypos = -Statistics.mean(edgeLengths)*(nRows÷2 + 1.5)
 
 
-    lines!(ax,[xstart, xend], [ypos - 0.01 * xrange[end], ypos + 0.01 * xrange[end]], color=:red, linewidth=5)
+    #lines!(ax,[xstart, xend], [ypos - 0.01 * xrange[end], ypos + 0.01 * xrange[end]], color=:red, linewidth=5)
+    lines!(ax,[xstart, xstart + 7.00], [ypos - 0.01, ypos + 0.01], color=:red, linewidth=5)
+    #TODO find a better way to calculate width of ruler used for whole simulation
+    lines!(ax,[xstart - 7.00, xstart], [ypos - 0.01, ypos + 0.01], color=:white)
 
-    text!(ax, string(round(xrange[end], sigdigits=3)), position=((xstart+xend)/2, ypos + 0.02 * xrange[end]), color=:red, align = (:center, :bottom), fontsize=20)
+    text!(ax, string(round(xstart+7, sigdigits=3)), position=((xstart+xend)/2, ypos + 0.02 * xrange[end]), color=:red, align = (:center, :bottom), fontsize=20)
 end
 
 function pressureToColour(pressure, minPressure, maxPressure)
-    minPressure = -0.3
-    maxPressure = 0.3
+    minPressure = -3
+    maxPressure = 3
     range = maxPressure - minPressure
 
     if !isfinite(range) || abs(range) < 1e-12
