@@ -26,7 +26,8 @@ function initialSystemLayout(;
         nRows = 3,
         boundaryToggle = 0,
         initialEdgeLength = 5.0*0.75/6, # Need to find a better value for this than 5*L₀/6
-        edgeCellsToggle = 0
+        edgeCellsToggle = 0,
+        disorderedInitial = false
     )
 
     equilibriumEdgeLength = initialEdgeLength
@@ -35,13 +36,23 @@ function initialSystemLayout(;
 
     # Must be an odd number
     cellPoints = [SVector(x, 0.0) for x = 1:nRows]
-    for j = 1:(floor(Int64,nRows/2))
-        for i = 1:nRows-j
-            # Need to add a small amount of randomness to prevent errors in voronoi tessellation 
-            push!(cellPoints, SVector(i + 0.5 * j + rand() * 0.001 - 0.0005, j * sqrt(1 - 0.5^2) + rand() * 0.001 - 0.0005))
-            push!(cellPoints, SVector(i + 0.5 * j + rand() * 0.001 - 0.0005, -j * sqrt(1 - 0.5^2) + rand() * 0.001 - 0.0005))
+    if disorderedInitial == false
+        for j = 1:(floor(Int64,nRows/2))
+            for i = 1:nRows-j
+                # Need to add a small amount of randomness to prevent errors in voronoi tessellation 
+                push!(cellPoints, SVector(i + 0.5 * j + rand() * 0.001 - 0.0005, j * sqrt(1 - 0.5^2) + rand() * 0.001 - 0.0005))
+                push!(cellPoints, SVector(i + 0.5 * j + rand() * 0.001 - 0.0005, -j * sqrt(1 - 0.5^2) + rand() * 0.001 - 0.0005))
+            end
+        end
+    else
+        for j = 1:(floor(Int64,nRows/2))
+            for i = 1:nRows-j
+                push!(cellPoints, SVector(i + 0.5 * j + rand() * 0.01 - 0.5, j * sqrt(1 - 0.5^2) + rand() * 0.01 - 0.5))
+                push!(cellPoints, SVector(i + 0.5 * j + rand() * 0.01 - 0.5, -j * sqrt(1 - 0.5^2) + rand() * 0.01 - 0.5))
+            end
         end
     end
+
     xs = [x[1] for x in cellPoints]
     ys = [x[2] for x in cellPoints]
 

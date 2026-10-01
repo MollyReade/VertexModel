@@ -25,6 +25,65 @@ getRandomColor(seed) = RGB(rand(Xoshiro(seed),3)...)
 
 effectiveCellPressure(cellPressures,cellTensions,cellPerimeters,cellAreas) = cellPressures .+ cellTensions.*cellPerimeters./(2.0.*cellAreas)
 
+function makeLp(params,matrices)
+    @unpack κ = params
+    @unpack cellαᵢs = matrices
+
+    Lp = κ*spdiagm(1 ./ cellαᵢs) + makeLa(params,matrices)
+
+    return Lp
+end
+
+function eigenmodesLp(params,matrices)
+    Lₚ = makeLp(params,matrices)
+    println(size(Lₚ))
+    return eigen(Matrix(Lₚ)).vectors, eigen(Matrix(Lₚ)).values
+end
+
+
+function makeLa(params,matrices)
+    @unpack nCells,
+    nVerts,
+    κ = params
+    @unpack vertexAreas,
+    areaJacobian,
+    cellαᵢs = matrices
+
+    laplacian = spzeros(Float64,nCells,nCells)
+
+    for k = 1:nVerts
+        invDₖ = 1/vertexAreas[k]
+        rng = areaJacobian.colptr[k]:(areaJacobian.colptr[k+1]-1)
+        n = length(rng)
+        for a in 1:n
+            pa = rng[a]
+            i = areaJacobian.rowval[pa]
+            vi = areaJacobian.nzval[pa]
+            for b in a:n
+                pb = rng[b]
+                m=areaJacobian.rowval[pb]
+                vm = areaJacobian.nzval[pb]
+                Lim = dot(vi, vm) * invDₖ
+                laplacian[i,m] += Lim
+                if i != m 
+                    laplacian[m,i] += Lim
+                end
+            end
+        end
+    end
+
+    La = laplacian
+
+    return La
+end
+
+function eigenmodesLa(params,matrices)
+    Lₐ = makeLa(params,matrices)
+    println(size(Lₐ))
+    return eigen(Matrix(Lₐ)).vectors, eigen(Matrix(Lₐ)).values
+end
+
+
 function cellQs(cellPerimeters,edgeTangents,B̄) 
     Q = Matrix{Float64}[]
     for i=1:length(cellPerimeters)
@@ -522,8 +581,10 @@ export makeLt
 export eigenmodesLt
 export eigenmodesLf
 export eigenmodesLv
+export eigenmodesLa
 export psicPotential
 export psivPotential
 export capitalPsivPotential
+export eigenmodesLp
 
 end #end module 

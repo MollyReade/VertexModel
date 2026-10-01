@@ -45,6 +45,7 @@ function initialise(; initialSystem = "new",
         boundaryCondition = "displacement",
         boundaryToggle = 0,
         edgeCellsToggle = 0,
+        disorderedInitial= false,
         outputTotal = 100,
         t1Threshold = 0.05,
         peripheralTension = 0.0,
@@ -55,7 +56,7 @@ function initialise(; initialSystem = "new",
         R_in= spzeros(2),
         A_in= spzeros(2),
         B_in= spzeros(2),
-        initialEdgeLength = 6/6,
+        initialEdgeLength = 8/6,
     )
 
     # Calculate derived parameters
@@ -77,14 +78,14 @@ function initialise(; initialSystem = "new",
         cellTimeToDivide = rand(rng,Uniform(0.0, nonDimCycleTime), size(B, 1))  # Random initial cell ages
     elseif initialSystem == "new"
         isodd(nRows) && (nRows>1)  ? nothing : throw("nRows must be an odd number greater than 1.")
-        A, B, R = initialSystemLayout(nRows=nRows,boundaryToggle=boundaryToggle, initialEdgeLength=initialEdgeLength, edgeCellsToggle=edgeCellsToggle)
-        println("RAW INITIAL R:")
+        A, B, R = initialSystemLayout(nRows=nRows,boundaryToggle=boundaryToggle, initialEdgeLength=initialEdgeLength, edgeCellsToggle=edgeCellsToggle, disorderedInitial = disorderedInitial)
+        println("INITIAL R:")
         println("x range = ", extrema(r[1] for r in R))
         println("y range = ", extrema(r[2] for r in R))
 
         rawLengths = norm.(A * R)
 
-        println("RAW INITIAL EDGE LENGTHS:")
+        println("INITIAL EDGE LENGTHS:")
         println(extrema(rawLengths))
 
     elseif initialSystem == "argument"
@@ -212,8 +213,6 @@ function initialise(; initialSystem = "new",
 
     topologyChange!(matrices, params)
     spatialData!(R, params, matrices)
-    println("AFTER TOPOLOGY/SPATIAL DATA:")
-    println(extrema(matrices.edgeLengths))
 
 
     # Convert vector of SVectors to flat vector of Float64

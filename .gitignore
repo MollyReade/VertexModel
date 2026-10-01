@@ -27,6 +27,7 @@ docs/site/
 /output
 data/sims*
 data/*
+notebooks/Old Notebooks/*
 *.code-workspace
 *.mp4
 *.png
