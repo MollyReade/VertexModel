@@ -71,20 +71,13 @@ function spatialData!(R,params,matrices)
 
     fill!(edgeCellNormals,  SVector{2,Float64}(zeros(2)))
     dropzeros!(edgeCellNormals)
-    # ----------- NOT EQUIVALENT
+    
     for j in 1:nEdges
         for p in B.colptr[j]:(B.colptr[j+1]-1)
             i=B.rowval[p]
             edgeCellNormals[i,j] = -ϵ * B.nzval[p] * edgeTangents[j]
         end
     end
-
-    # for i = 1:nCells
-    #     for j = 1:nEdges
-    #         edgeCellNormals[i, j] = - ϵ * B[i,j] * edgeTangents[j]
-    #     end
-    # end
-    # ---------------
 
     fill!(avgEdgeCellNormals, SVector{2,Float64}(zeros(2)))
 
@@ -101,16 +94,6 @@ function spatialData!(R,params,matrices)
 
         avgEdgeCellNormals[k] = n/ norm(n)
     end
-    # for k = 1:nVerts
-    #     for i = 1:nCells
-    #         for j = 1:nEdges
-    #             #FIXME Heavy line
-    #             avgEdgeCellNormals[k] += abs(A[j,k]) * edgeCellNormals[i,j] * C[i,k]
-    #         end
-    #     end
-    #     avgEdgeCellNormals[k] = avgEdgeCellNormals[k] ./ norm(avgEdgeCellNormals[k])
-    # end
-
 
     fill!(areaJacobian, SVector{2,Float64}(zeros(2)))
     dropzeros!(areaJacobian)
@@ -123,15 +106,6 @@ function spatialData!(R,params,matrices)
         end
     end
 
-    # for  i = 1:nCells
-    #     for k = 1:nVerts
-    #         for j = 1:nEdges
-    #             #FIXME Heaviest line, make faster
-    #             areaJacobian[i, k] += 0.5 * edgeCellNormals[i,j] * Ā[j,k]
-    #         end
-    #     end
-    # end
-
     fill!(∂𝒜∂r,  SVector{2,Float64}(zeros(2)))
 
     for i in 1:nCells
@@ -139,15 +113,6 @@ function spatialData!(R,params,matrices)
             ∂𝒜∂r[k] += areaJacobian[i,k]
         end
     end
-    # for k = 1:nVerts
-    #     ∂𝒜∂r[k] = @SVector zeros(2)
-    #     for i = 1:nCells
-    #         for j = 1:nEdges
-    #             #FIXME Heavy line
-    #             ∂𝒜∂r[k] += 0.5* edgeCellNormals[i,j] * Ā[j,k]
-    #         end
-    #     end
-    # end
 
     edgeMidpoints  .= 0.5.*Ā*R
     

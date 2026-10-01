@@ -53,7 +53,7 @@ function vertexModel(;
     viscousTimeScale = 1.0,
     peripheralTension = 0.0,
     t1Threshold = 0.00,
-    boundaryCondition = "displacement", # "displacement" or "force"
+    boundaryCondition = "force", # "displacement" or "force"
     boundaryToggle = 0,
     edgeCellsToggle = 0,
     disorderedInitial = false,
@@ -89,6 +89,7 @@ function vertexModel(;
     returnPlots = false
 ) # All arguments are optional and will be instantiated with these default values if not provided at runtime
 
+# FIXME displacement case - keeps drifting if use edge cells, have non length 1 start, have random
     BLAS.set_num_threads(nBlasThreads)
 
     # Set up initial system, packaging parameters and matrices for system into params and matrices containers from VertexModelContainers.jl
@@ -162,7 +163,6 @@ function vertexModel(;
         else
             u = u0
         end
-        #TODO prestress here
 
         println("Average edge strain = ", mean(matrices.edgeLengths ./ l₀))
         println("Longest and shortest edge lengths: ", extrema(matrices.edgeLengths))
@@ -191,9 +191,6 @@ function vertexModel(;
                 outputCounter[1] += 1
             end
             u = splitStep(u, u0,(params,matrices), t, dt/2)
-            # minD = minimum(matrices.vertexAreas[matrices.boundaryVertices .== 1])
-            # minEdgeLen = minimum(matrices.edgeLengths[matrices.boundaryEdges .== 1])
-            # println(minD, minEdgeLen)
             t += dt
 
             params.currentTime = t

@@ -301,7 +301,6 @@ function inversePressure!(p,t)
         end
     end
 
-    # TODO swap out Diagonals?
     RHS = -spdiagm(cellAreas)*divₐ(areaJacobian, cellAreas,(spdiagm(1 ./ vertexAreas)*gradₗ*T))
     RHS += κ*spdiagm(1 ./ cellαᵢs)*Pₘ*ones(nCells)
     RHS += spdiagm(cellAreas)*divₐ(areaJacobian,cellAreas,spdiagm(1 ./ vertexAreas)*(Pᵢₚ - Pₘ)*∂𝒜∂r)

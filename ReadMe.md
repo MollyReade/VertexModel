@@ -19,17 +19,25 @@ Possible input parameters:
 |:------------------------|:-----------------------|:---------------------------------------------------------------------------------------|
 | `initialSystem`         | `"new"`                | Specify whether initial state is generated afresh or imported from file or argument. Possible values `"new"`, `"argument"`, or path to data file. 
 | `nRows`                 | `9`                    | Size of initial system state if generating afresh
-| `nCycles`               | `1`                    | Number of cell cycles in simulation run time
-| `realCycleTime`         | `86400.0`              | Dimensional cell cycle time
+| `nCycles`               | `1`                    | Number of alveolar cycles in simulation run time
+| `realCycleTime`         | `86.4`              | Dimensional alveolar cycle time
 | `realTimetMax`          | `nCycles*realCycleTime`| Dimensional simulation run time 
+| `κ`                     | `0.6`                  | Vertex drag parameter
 | `γ`                     | `0.2`                  | Parameter in energy relaxation
-| `L₀`                    | `0.75`                 | Preferred cell perimeter length
-| `A₀`                    | `1.0`                  | Preferred cell area, almost always =1.0
-| `viscousTimeScale`      | `1000.0` | Relaxation rate
-| `pressureExternal`      | `0.0` | Pressure perpendicular to system boundary applied to boundary vertices
+| `L₀`                    | `0.75`                 | Preferred alveolar perimeter length
+| `l₀`                    | `1.0`                  | Preferred alveolar wall length
+| `A₀`                    | `1.0`                  | Preferred alveolaar area, almost always =1.0
+| `P₀`                    | `0.7`                  | Ambient pleural pressure used in pressure boundary condition
+| `ω`                     | `π/(2*realCycleTime)`  | Period of boundary condition
+| `Amp`                   | `0.3`                  | Amplitude of boundary condition
+| `boundaryModel`         | `"sinusoidal"` | Mode of boundary forcing
+| `viscousTimeScale`      | `1.0` | Relaxation rate
 | `peripheralTension`     | `0.0` | Tension parallel to system boundary applied to boundary vertices
-| `t1Threshold`           | `0.05` | Edge length below which a T1 transition occurs
-| `divisionToggle`        | `1` | Toggle controlling whether cells divide in the simulation. 
+| `t1Threshold`           | `0.00` | Edge length below which a T1 transition occurs
+| `boundaryCondition`     | `"force"` | Type of boundry condition - either forcing or displacement
+| `edgeCellsToggle`       | `1` | Toggle controlling whether edge generate 
+| `disorderedInitial`     | `false` | Controls whether initial set up is regular or disordered
+| `solveMethod`           | `"Manual"` | Controls whether manual stepping or an ODE solver are used
 | `solver`                | `Tsit5()` | ODE solver algorithm; requires loading DifferentialEquations.jl or OrdinaryDiffEq.jl in REPL to pass solver as argument
 | `nBlasThreads`          | `1` | Number of BLAS parallel threads
 | `subFolder`             | `""` | Subfolder into which data are saved 
@@ -48,8 +56,9 @@ Possible input parameters:
 | `randomSeed`            | `0` | Used to specify a random seed for reproducibility; generated from current time if `0` is passed.
 | `abstol`                | `1e-7,` | Absolute tolerance for ODE solver (see DifferentialEquations.jl)
 | `reltol`                | `1e-4` | Relative tolerance for ODE solver (see DifferentialEquations.jl)
-| `energyModel`           | `"log"` | Energy model used; options are `"log"` or `"quadratic"`
-| `vertexWeighting`       | `1` | Controls whether drag proportional to vertex area is applied to each vertex
+| `energyModel`           | `"ventilation_rational"` | Energy model used; options are `"ventilation"` or `"ventilation_rational"`
+| `resistanceModel`       | `"Linear"` | Method of selection of airway resistance values
+| `relaxFirst`            | `true` | Controls whether system relaxes to steady state before forcing and output
 | `R_in`                  | `spzeros(2)` | Vertex position matrix passed at command line; only used if `initialSystem=="argument"`
 | `A_in`                  | `spzeros(2)` | Incidence matrix passed at command line; only used if `initialSystem=="argument"`
 | `B_in`                  | `spzeros(2)` | Incidence matrix passed at command line; only used if `initialSystem=="argument"`
