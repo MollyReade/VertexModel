@@ -31,31 +31,34 @@ using Statistics
 @from "T1Transitions.jl" using T1Transitions
 @from "TopologyChange.jl" using TopologyChange
 @from "SenseCheck.jl" using SenseCheck
+@from "Energy.jl" using Energy
 
 function vertexModel(;
     initialSystem = "new",
-    nRows = 5,
+    nRows = 9,
+    generationMode = "squares", # "squares" or "Matern" or "Gibbs"
     nCycles = 1,
-    realCycleTime = 50,
+    realCycleTime = 4π/0.8,
     realTimetMax = nCycles*realCycleTime,
     Λ = 1,
     κ = 0.6,
     γ = 0.2,
     L₀ = 1,
+    unstressedSetup = "linear", # "linear" or "initial"
     l₀ = 1,
     A₀ = 1.0,
     Pᵢ = 0.0,
     Pₘ = 0.0,
-    P₀ = 0.7,   # P₀ >= 2*Amp for no buckling due to convex outer alveoli
-    ω = π/(2*realCycleTime),
-    Amp = 0.3,
+    P₀ = 0.6,   # P₀ >= 2*Amp for no buckling due to convex outer alveoli
+    ω = 0.8,
+    Amp = 0.8,
     boundaryModel = "sinusoidal", #sinusoidal or constant
     viscousTimeScale = 1.0,
     peripheralTension = 0.0,
     t1Threshold = 0.00,
     boundaryCondition = "force", # "displacement" or "force"
     boundaryToggle = 0,
-    edgeCellsToggle = 0,
+    edgeCellsToggle = 1,
     disorderedInitial = false,
     solveMethod = "Manual",  #Manual or ODEProblem
     solver = Tsit5(),
@@ -77,7 +80,7 @@ function vertexModel(;
     abstol = 1e-7, 
     reltol = 1e-4,
     energyModel = "ventilation_rational",
-    resistanceModel = "Linear",
+    resistanceModel = "Linear", # "Linear" or "One Blocked" or "Lobes
     relaxFirst = true,
     dissipationToggle = 0,
     R_in = spzeros(2),
@@ -94,12 +97,14 @@ function vertexModel(;
 
     # Set up initial system, packaging parameters and matrices for system into params and matrices containers from VertexModelContainers.jl
     u0, params, matrices = initialise(initialSystem = initialSystem,
+        generationMode = generationMode,
         realTimetMax = realTimetMax,
         γ = γ,
         Λ = Λ,
         κ = κ,
         L₀ = L₀,
         A₀ = A₀,
+        unstressedSetup = unstressedSetup,
         l₀ = l₀,
         Pᵢ = Pᵢ,
         Pₘ = Pₘ,
@@ -129,7 +134,9 @@ function vertexModel(;
     mov = existingMov !== nothing ? existingMov : nothing
     # Create directory in which to store date. Save parameters and store directory name for later use.
     if outputToggle == 1
-        subFolder=energyModel
+        if subFolder == ""
+            subFolder = energyModel
+        end
         folderName = createRunDirectory(params,subFolder)
         params.folderName = folderName
         
@@ -145,26 +152,36 @@ function vertexModel(;
 
     if solveMethod == "Manual"
         if relaxFirst
+            stepEnergy = []
             t0 = 0.0
             params.ipModel = "constant"
-            alltStops = collect(0.0:params.outputInterval:params.tMax)
             u = u0
             diff = 100
-            while diff > 1e-2
+            pressures = 100
+            previousPressures = []
+            # Continue while both convergence criteria are unmet.
+            while pressures > 1e-9 && diff > 1e-9
                 u1 = copy(u)
-                dt = params.outputInterval/200.0
+                dt = (200/100)/500.0
                 R = reinterpret(SVector{2,Float64},u)
+                previousPressures = copy(matrices.cellPressures)
                 u = splitStep(u,u0,(params,matrices), t0, dt/2)
                 t0 += dt
-                diff = abs(mean(matrices.cellPressures))
+                pressures = abs(mean(matrices.cellPressures))
+                diff = abs(mean(matrices.cellPressures) - mean(previousPressures))
                 spatialData!(R,params,matrices)
+                println("t0: ", t0, ", mean cell pressure: ", mean(matrices.cellPressures), ", diff: ", diff)
+                push!(stepEnergy, energy(params,matrices))
+                if length(stepEnergy) > 1 && stepEnergy[end] > stepEnergy[end-1]
+                    #println("Energy increased")
+                end
             end
             println(diff)
         else
             u = u0
         end
 
-        println("Average edge strain = ", mean(matrices.edgeLengths ./ l₀))
+        println("Average edge strain = ", mean(matrices.edgeLengths ./ matrices.edgel₀s))
         println("Longest and shortest edge lengths: ", extrema(matrices.edgeLengths))
 
         params.ipModel = boundaryModel
@@ -172,21 +189,27 @@ function vertexModel(;
         alltStops = collect(0.0:params.outputInterval:params.tMax) # Time points that the solver will be forced to land at during integration
         outputCounter = [1]
         #u = u0
+        stepEnergy = []
         while t < params.tMax
-            dt = params.outputInterval/3000.0
+            if params.ω < 0.01
+                dt = params.outputInterval/5000.0
+            else
+                dt = params.outputInterval/500.0
+            end
+            #dt = params.outputInterval/250.0
             R = reinterpret(SVector{2,Float64}, u)
             if abs((t - alltStops[outputCounter[1]])) < 1e-8
                 # Update progress on command line 
                 printToggle == 1 ? println("$(@sprintf("%.2f", t))/$(@sprintf("%.2f", params.tMax)), $(outputCounter[1])/$outputTotal") : nothing            
                 if frameDataToggle == 1
                     # Save system data to file 
-                    jldsave(datadir(folderName, "frameData", "systemData$(@sprintf("%03d", outputCounter[1])).jld2"); matrices, params, R)
+                    jldsave(datadir(folderName, "frameData", "systemData$(@sprintf("%03d", outputCounter[1])).jld2"); matrices, params, R, t)
                 end
-                if frameImageToggle == 1 || videoToggle == 1
-                    # Render visualisation of system and add frame to movie
-                    visualise(R, t, fig, ax, mov, params, matrices, plotCells, scatterEdges, scatterVertices, scatterCells, plotForces, plotEdgeMidpointLinks)
-                    frameImageToggle == 1 ? save(datadir(folderName, "frameImages", "frameImage$(@sprintf("%03d", outputCounter[1])).png"), fig) : nothing
-                end
+                # if frameImageToggle == 1 || videoToggle == 1
+                #     # Render visualisation of system and add frame to movie
+                #     visualise(R, t, fig, ax, mov, params, matrices, plotCells, scatterEdges, scatterVertices, scatterCells, plotForces, plotEdgeMidpointLinks)
+                #     frameImageToggle == 1 ? save(datadir(folderName, "frameImages", "frameImage$(@sprintf("%03d", outputCounter[1])).png"), fig) : nothing
+                # end
                 # Save still image of this time step 
                 outputCounter[1] += 1
             end
@@ -195,6 +218,10 @@ function vertexModel(;
 
             params.currentTime = t
             spatialData!(R, params, matrices)
+            push!(stepEnergy, energy(params,matrices))
+            if length(stepEnergy) > 1 && stepEnergy[end] > stepEnergy[end-1]
+                #println( "\n Energy increased\n ")
+            end
             # println("\n========== DEBUG ==========")
 
             # println("edge length       : ", extrema(matrices.edgeLengths))
@@ -206,6 +233,58 @@ function vertexModel(;
 
             # println("============================\n")
         end
+        # Loop through each data file, find most extreme x and y values, and visualise the system, adding each frame to the movie
+        xlimits = Float64[0, 0]
+        ylimits = Float64[0, 0]
+        pressureLimits = Float64[0, 0]
+        strainLimits = Float64[0, 2]
+        for dataFile in 1:outputTotal
+            if isfile(datadir(folderName, "frameData", "systemData$(@sprintf("%03d", dataFile)).jld2")) == false
+                continue
+            end
+            data = jldopen(datadir(folderName, "frameData", "systemData$(@sprintf("%03d", dataFile)).jld2"), "r") do file
+                return read(file, "matrices"), read(file, "params"), read(file, "R")
+            end
+            matrices, params, R = data
+            if pressureLimits[1] > extrema(matrices.cellPressures)[1]
+                pressureLimits[1] = extrema(matrices.cellPressures)[1]
+            end
+            if pressureLimits[2] < extrema(matrices.cellPressures)[2]
+                pressureLimits[2] = extrema(matrices.cellPressures)[2]
+            end
+            if strainLimits[2] < extrema(matrices.edgeLengths ./ matrices.edgel₀s)[2]
+                strainLimits[2] = extrema(matrices.edgeLengths ./ matrices.edgel₀s)[2]
+            end
+            if ylimits[1] > extrema(r[2] for r in R)[1]
+                extreme = extrema(r[2] for r in R)
+                ylimits[1] = extreme[1]
+            end
+            if ylimits[2] < extrema(r[2] for r in R)[2]
+                ylimits[2] = extrema(r[2] for r in R)[2]
+            end
+            if xlimits[1] > extrema(r[1] for r in R)[1]
+                xlimits[1] = extrema(r[1] for r in R)[1]
+            end
+            if xlimits[2] < extrema(r[1] for r in R)[2]
+                xlimits[2] = extrema(r[1] for r in R)[2]
+            end
+        end
+
+        for dataFile in 1:outputTotal
+            if isfile(datadir(folderName, "frameData", "systemData$(@sprintf("%03d", dataFile)).jld2")) == false
+                continue
+            end
+            data = jldopen(datadir(folderName, "frameData", "systemData$(@sprintf("%03d", dataFile)).jld2"), "r") do file
+                return read(file, "matrices"), read(file, "params"), read(file, "R"), read(file, "t")
+            end
+            matrices, params, R, t = data
+            if frameImageToggle == 1 || videoToggle == 1
+                # Render visualisation of system and add frame to movie
+                visualise(R, t, fig, ax, mov, params, matrices, plotCells, scatterEdges, scatterVertices, scatterCells, plotForces, plotEdgeMidpointLinks,strainLimits,pressureLimits, limits = (xlimits[1], xlimits[2], ylimits[1], ylimits[2]))
+                frameImageToggle == 1 ? save(datadir(folderName, "frameImages", "frameImage$(@sprintf("%03d", dataFile)).png"), fig) : nothing
+            end
+        end
+
         (outputToggle == 1 && videoToggle == 1 && isnothing(existingMov)) ? save(datadir(folderName, "$(splitpath(folderName)[end]).mp4"), mov) : nothing
         if returnPlots
             return u, fig, ax, mov

@@ -185,6 +185,7 @@ function tensionComponent!(u,p,t)
          nEdges,
          Pₘ,
          κ,
+         ω,
          P₀,
          Λ,
          Amp,
@@ -199,7 +200,7 @@ function tensionComponent!(u,p,t)
 
     if boundaryCondition == "force"
         if ipModel == "sinusoidal"
-            Pᵢₚ = P₀ + Amp * sin(t)
+            Pᵢₚ = P₀ + Amp * sin(t*ω)
         else
             Pᵢₚ = P₀
         end
@@ -254,6 +255,7 @@ function inversePressure!(p,t)
         T,
         laplacian = matrices
     @unpack κ,
+        ω,
         nCells,
         nEdges,
         nVerts,
@@ -269,7 +271,7 @@ function inversePressure!(p,t)
     
     if boundaryCondition == "force"
         if ipModel == "sinusoidal" 
-            Pᵢₚ = P₀ + Amp * sin(t)
+            Pᵢₚ = P₀ + Amp * sin(t*ω)
         else
             Pᵢₚ = P₀
         end
@@ -305,6 +307,7 @@ function inversePressure!(p,t)
     RHS += κ*spdiagm(1 ./ cellαᵢs)*Pₘ*ones(nCells)
     RHS += spdiagm(cellAreas)*divₐ(areaJacobian,cellAreas,spdiagm(1 ./ vertexAreas)*(Pᵢₚ - Pₘ)*∂𝒜∂r)
     cellPressures .= (κ*spdiagm(1 ./ cellαᵢs) + laplacian) \ (RHS)   # Invert for cell pressures
+    #println(extrema(cellαᵢs), cellPressures[argmax(cellαᵢs)])
 
 end
 
@@ -329,6 +332,7 @@ function pressureComponent!(p,t,oldJacobian,oldPressures)
             dR⁺[k] += areaJacobian[i,k] * cellPressures[i] -oldJacobian[i,k] * oldPressures[i] # Force due to internal presuures
         end
     end
+
 
     if boundaryCondition == "displacement"
         for k in 1:nVerts

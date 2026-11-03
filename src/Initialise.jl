@@ -26,10 +26,11 @@ using LinearAlgebra
 @from "SpatialData.jl" using SpatialData
 
 function initialise(; initialSystem = "new",
+        generationMode = "squares", # "squares" or "Matern" or "Gibbs"
         nCycles = 1,
         realCycleTime = 86400.0,
         realTimetMax = nCycles*realCycleTime,
-        κ = 0.5,
+        κ = 0.2,
         Λ = 0.5,
         γ = 0.2,
         L₀ = 0.75,
@@ -56,7 +57,8 @@ function initialise(; initialSystem = "new",
         R_in= spzeros(2),
         A_in= spzeros(2),
         B_in= spzeros(2),
-        initialEdgeLength = 8/6,
+        initialEdgeLength = 9/6,
+        unstressedSetup = "initial" # "one" or "initial" - whether to set all edge unstressed lengths to the same value (one) or to the initial edge lengths (initial)
     )
 
     # Calculate derived parameters
@@ -78,7 +80,7 @@ function initialise(; initialSystem = "new",
         cellTimeToDivide = rand(rng,Uniform(0.0, nonDimCycleTime), size(B, 1))  # Random initial cell ages
     elseif initialSystem == "new"
         isodd(nRows) && (nRows>1)  ? nothing : throw("nRows must be an odd number greater than 1.")
-        A, B, R = initialSystemLayout(nRows=nRows,boundaryToggle=boundaryToggle, initialEdgeLength=initialEdgeLength, edgeCellsToggle=edgeCellsToggle, disorderedInitial = disorderedInitial)
+        A, B, R = initialSystemLayout(nRows=nRows,generationMode=generationMode,boundaryToggle=boundaryToggle, initialEdgeLength=initialEdgeLength, edgeCellsToggle=edgeCellsToggle, disorderedInitial = disorderedInitial)
         println("INITIAL R:")
         println("x range = ", extrema(r[1] for r in R))
         println("y range = ", extrema(r[2] for r in R))
@@ -101,13 +103,10 @@ function initialise(; initialSystem = "new",
         R = importedData["R"]
     end
 
-    if resistanceModel == "Linear"
-        cellαᵢs = ones(size(B, 1))
-    end
-
     nCells = size(B, 1)
     nEdges = size(A, 1)
     nVerts = size(A, 2)
+    
 
     # Fill preallocated matrices into struct for convenience
     matrices = MatricesContainer(
@@ -131,7 +130,7 @@ function initialise(; initialSystem = "new",
         cellOrientedAreas = fill(SMatrix{2,2,Float64}(zeros(2,2)), nCells),
         cellAreas         = zeros(nCells),
         cellA₀s           = fill(A₀, nCells),
-        cellαᵢs           = cellαᵢs,
+        cellαᵢs           = ones(nCells),
         cellL₀s           = fill(L₀, nCells),
         cellTensions      = zeros(nCells),
         cellPressures     = zeros(nCells),
@@ -209,11 +208,69 @@ function initialise(; initialSystem = "new",
     )
 
     # Initial evaluation of matrices based on system topology
-    
 
     topologyChange!(matrices, params)
     spatialData!(R, params, matrices)
 
+    if resistanceModel == "Linear"
+        matrices.cellαᵢs = ones(size(matrices.B, 1))
+    elseif resistanceModel == "One Blocked"
+        matrices.cellαᵢs = ones(size(matrices.B, 1))
+        i=1
+        # choose a 'double landlocked' cell to block, i.e. a cell which has no boundary edges and is not adjacent to any cell with boundary edges. For each edge on cell i, check if boundaryEdges is 1 or 0, if 1, try next cell, if zero check that other cell adjacent to that edge also has no boundary edges, if so, block that cell, if not try next cell. If no double landlocked cells exist, throw error.
+        while true
+            # cellEdgeOrders[i] gives edges of cell i in a CircularArray, so for each edge, find the other cell adjacent to that edge and check if that cell has boundaryEdges[cellEdgeOrders] one or zero. If all edges have other cells with boundaryEdges zero, then cell i is double landlocked and can be blocked.
+            if iszero(matrices.boundaryEdges[matrices.cellEdgeOrders[i]]) 
+                break
+            else
+                i += 1
+                if i > size(matrices.B, 1)
+                    throw("No double landlocked cells found to block.")
+                end
+            end
+        end
+
+        println("Blocking cell ", i)
+        matrices.cellαᵢs[i] = 1000000000
+        println("Cell αᵢs = ", matrices.cellαᵢs)
+    elseif resistanceModel == "Lobes"
+        # Currently splits the monolayer into four quadrants with different airway resistances
+        # TODO Want to have more random lobes and to identify edges between different lobes
+        matrices.cellαᵢs = ones(size(matrices.B, 1))
+        for i in 1:size(matrices.B, 1)
+            if matrices.cellPositions[i][2] > 0.0 && matrices.cellPositions[i][1] > 0.0
+                matrices.cellαᵢs[i] = 1.5
+            elseif matrices.cellPositions[i][2] > 0.0 && matrices.cellPositions[i][1] <= 0.0
+                matrices.cellαᵢs[i] = 1
+            elseif matrices.cellPositions[i][2] <= 0.0 && matrices.cellPositions[i][1] > 0.0
+                matrices.cellαᵢs[i] = 0.5
+            elseif matrices.cellPositions[i][2] <= 0.0 && matrices.cellPositions[i][1] <= 0.0
+                matrices.cellαᵢs[i] = 100
+            end
+        end
+
+        # Identify edges that are between cells with different αᵢs and store them in a vector
+        edgeLobeLinks = []
+        for j in 1:size(matrices.B, 2)
+            cells = findall(!iszero, matrices.B[:,j])
+            if length(cells) == 2
+                if matrices.cellαᵢs[cells[1]] != matrices.cellαᵢs[cells[2]]
+                    push!(edgeLobeLinks, j)
+                end
+            end
+        end
+
+        # Stiffen edges that are lobe walls
+        matrices.edgel₀s[edgeLobeLinks] .= matrices.edgeLengths[edgeLobeLinks] * 4
+
+    else
+        throw("Invalid resistance model specified. Must be either 'Linear' or 'One Blocked'.")
+    end
+    println("Cell αᵢs = ", matrices.cellαᵢs)
+
+    if unstressedSetup == "initial"
+        matrices.edgel₀s .= matrices.edgeLengths/2
+    end
 
     # Convert vector of SVectors to flat vector of Float64
     u0 = Float64[]

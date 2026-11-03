@@ -15,7 +15,7 @@ using UnPack
 Uᵢ(Aᵢ, A₀, Lᵢ, L₀, μᵢ, Γᵢ) = μᵢ*(𝒰(Aᵢ/A₀) + Γᵢ*L₀^2*𝒰(Lᵢ/L₀))
 
 #Energy for ventilation model with pressure, drag and tension
-
+W(x) = ((x^3)/3 - (x^(-2)/2))/5
 UVᵢ(Aᵢ,lᵢ,l₀,Pᵢ,Tᵢ) = Pᵢ * Aᵢ + 1/(2) * Tᵢ
 
 function energy(params,matrices)
@@ -28,11 +28,13 @@ function energy(params,matrices)
         cellPressures,
         edgel₀s = matrices
     @unpack energyModel,
-    l₀ = params
-    print(stacktrace())
+    l₀,
+    nEdges,
+    P₀ = params
     if energyModel == "ventilation"
         # Ventilation energy
         tens_sum = B̄*(edgeLengths.-1).^2
+        energyTotal = 0
         for i = 1:nCells
             
             energyTotal += UVᵢ.(cellAreas[i], edgeLengths[i], l₀, cellPressures[i],tens_sum[i])
@@ -40,10 +42,11 @@ function energy(params,matrices)
     elseif energyModel == "ventilation_rational"
         # Ventilation energy with rational tension law
 
-        tens_sum = B̄*((edgeLengths.^2 .- edgeLengths.^(-3))./6)
-        for i = 1:nCells
-            energyTotal += UVᵢ.(cellAreas[i], edgeLengths[i], l₀, cellPressures[i],tens_sum[i])
+        energyTotal = 0
+        for j = 1:nEdges
+            energyTotal += l₀*W(edgeLengths[j]/l₀)
         end
+        energyTotal -= P₀*sum(cellAreas)
     end
 
     return energyTotal
@@ -64,30 +67,10 @@ function energyCells(params, matrices)
     nCells = length(cellAreas)
     energyPerCell = zeros(nCells)
 
-    if energyModel == "ventilation"
-        # Ventilation energy
-        tens_sum = B̄*(edgeLengths.-1).^2
-        for i = 1:nCells
-            energyPerCell[i] = UVᵢ.(cellAreas[i], edgeLengths[i], l₀, cellPressures[i],tens_sum[i])
-        end
-    elseif energyModel == "ventilation_rational"
-        # Ventilation energy with rational tension law
-
-        tens_sum = B̄*((edgeLengths.^2 .- edgeLengths.^(-3))./5)
-        for i = 1:nCells
-            energyPerCell[i] = UVᵢ.(cellAreas[i], edgeLengths[i], l₀, cellPressures[i],tens_sum[i])
-        end
-    end
-
     return energyPerCell
 end
-function tempMeanEnergy(edgeLengths, cellAreas, pressures, nCells)
-    
-    tens_sum = B̄*((edgeLengths.^2 .- edgeLengths.^(-3))./6)
-    
-    energyPerCell = UVᵢ.(cellAreas, edgeLengths, 1, pressures,tens_sum)
-return energyPerCell
-export energy, tempMeanEnergy, energyCells
+
+export energy, energyCells
 end
 
-end
+

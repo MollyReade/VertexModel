@@ -45,6 +45,7 @@ function spatialData!(R,params,matrices)
         edgeCellNormals,
         avgEdgeCellNormals,
         edgeLengths,
+        edgel₀s,
         edgeTangents,
         edgeTensions,
         edgeMidpoints,
@@ -164,12 +165,13 @@ function spatialData!(R,params,matrices)
         #Aα^n + Bα^-m + C
         #A = 1/n(n+m), B = 1/m(n+m), C = -1/mn
         # Calculate cell boundary tensions
-        @.. thread = false edgeTensions .=  ((edgeLengths/l₀).^2 .- (edgeLengths/l₀).^(-3)) ./ 5  
+        @.. thread = false edgeTensions .=  ((edgeLengths./edgel₀s).^2 .- (edgeLengths./edgel₀s).^(-3)) ./ 5  
         # Calculate cell internal pressures
         #@.. thread = false cellPressures .= cellPᵢs
     else
         #something here
     end
+
 
     edgeTensions[boundaryEdges .==1 ] .+= peripheralTension
 

@@ -19,11 +19,13 @@ using FromFile
 using Random
 using InvertedIndices
 using NonlinearSolve
+using Distributions
 
 @from "SenseCheck.jl" using SenseCheck
 
 function initialSystemLayout(;
         nRows = 3,
+        generationMode = "squares", # "squares" or "Matern" or "Gibbs"
         boundaryToggle = 0,
         initialEdgeLength = 5.0*0.75/6, # Need to find a better value for this than 5*L₀/6
         edgeCellsToggle = 0,
@@ -35,22 +37,69 @@ function initialSystemLayout(;
     verticalCellSpacing = 1.5*equilibriumEdgeLength
 
     # Must be an odd number
-    cellPoints = [SVector(x, 0.0) for x = 1:nRows]
-    if disorderedInitial == false
-        for j = 1:(floor(Int64,nRows/2))
-            for i = 1:nRows-j
-                # Need to add a small amount of randomness to prevent errors in voronoi tessellation 
-                push!(cellPoints, SVector(i + 0.5 * j + rand() * 0.001 - 0.0005, j * sqrt(1 - 0.5^2) + rand() * 0.001 - 0.0005))
-                push!(cellPoints, SVector(i + 0.5 * j + rand() * 0.001 - 0.0005, -j * sqrt(1 - 0.5^2) + rand() * 0.001 - 0.0005))
+    
+    if generationMode == "squares"
+        if disorderedInitial == false
+            cellPoints = [SVector(x, 0.0) for x = 1:nRows]
+            for j = 1:(floor(Int64,nRows/2))
+                for i = 1:nRows-j
+                    # Need to add a small amount of randomness to prevent errors in voronoi tessellation 
+                    push!(cellPoints, SVector(i + 0.5 * j + rand() * 0.001 - 0.0005, j * sqrt(1 - 0.5^2) + rand() * 0.001 - 0.0005))
+                    push!(cellPoints, SVector(i + 0.5 * j + rand() * 0.001 - 0.0005, -j * sqrt(1 - 0.5^2) + rand() * 0.001 - 0.0005))
+                end
+            end
+        else
+            # increase randomness
+            cellPoints = [SVector(x + rand() * 0.75 - 0.5, rand() * 0.75 - 0.5) for x = 1:nRows]
+            for j = 1:(floor(Int64,nRows/2))
+                for i = 1:nRows-j
+                    # If a disordered set up is required, add a larger amount of randomness to the cell positions, within the constraints of the hexagonal grid.
+                    push!(cellPoints, SVector(i + 0.5 * j + rand() * 0.75 - 0.5, j * sqrt(1 - 0.5^2) + rand() * 0.75 - 0.5))
+                    push!(cellPoints, SVector(i + 0.5 * j + rand() * 0.75 - 0.5, -j * sqrt(1 - 0.5^2) + rand() * 0.75 - 0.5))
+                    
+                end
             end
         end
-    else
-        for j = 1:(floor(Int64,nRows/2))
-            for i = 1:nRows-j
-                push!(cellPoints, SVector(i + 0.5 * j + rand() * 0.01 - 0.5, j * sqrt(1 - 0.5^2) + rand() * 0.01 - 0.5))
-                push!(cellPoints, SVector(i + 0.5 * j + rand() * 0.01 - 0.5, -j * sqrt(1 - 0.5^2) + rand() * 0.01 - 0.5))
+    elseif generationMode == "Matern"
+        # Use a Matern hard-core type II process to generate a random set of points with a minimum distance between them.
+        # This will create a more disordered initial configuration of cells, while still maintaining a minimum distance between them.
+        # The minimum distance between points is set to be the horizontal cell spacing, so that the cells do not overlap.
+        windowRadius = (nRows/2 * horizontalCellSpacing)
+        windowArea = π * windowRadius^2
+        desiredNumPoints = nRows + 2*sum(nRows-(nRows-1)/2:nRows-1)
+        println("Desired number of points: ", desiredNumPoints)
+        intensity = 2.5 * desiredNumPoints / windowArea
+
+        nPoints = rand(Poisson(intensity * windowArea))
+
+        θ = 2π * rand(nPoints)
+        radius = windowRadius * sqrt.(rand(nPoints))
+
+        x = radius .* cos.(θ)
+        y = radius .* sin.(θ)
+
+        marks = rand(nPoints)
+
+        survives = trues(nPoints)
+
+        for i in 1:nPoints
+            for j in 1:nPoints
+                if i == j
+                    continue
+                end
+
+                distance = sqrt((x[i] - x[j])^2 + (y[i] - y[j])^2)
+
+                if distance < initialEdgeLength && marks[i] > marks[j]
+                    survives[i] = false
+                    break
+                end
             end
         end
+        cellPoints = [SVector(x[i], y[i]) for i in 1:nPoints if survives[i]]
+    elseif generationMode == "Gibbs"
+        # Use a Strauss Gibbs point process using a Metropolis-Hastings MCMC algorithm to generate a random set of points with a minimum distance between them.
+
     end
 
     xs = [x[1] for x in cellPoints]
@@ -119,6 +168,8 @@ function initialSystemLayout(;
 
     # Prune peripheral vertices with 2 edges that both belong to the same cell
     # Making the assumption that there will never be two such vertices adjacent to each other
+    # Want to prune non-convex polygons, i.e., those with more than three vertices and at least one interior angle greater than 180 degrees.
+
     
     verticesToRemove = Int64[]
     edgesToRemove = Int64[]
@@ -141,7 +192,6 @@ function initialSystemLayout(;
     A = A[Not(edgesToRemove), Not(verticesToRemove)]
     B = B[:, Not(edgesToRemove)]
     Rtmp = Rtmp[Not(verticesToRemove)]
-
     
 
     senseCheck(A, B; marker="Error after removing peripheral vertices")
